@@ -718,9 +718,10 @@ export default function App() {
           <span className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">Rango</span>
           <span className="font-mono text-slate-700 font-semibold">{data.min_fecha} → {data.max_fecha}</span>
         </div>
+      </header>
 
-        {/* Filters Bar */}
-        <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-6 shadow-sm">
+      {/* Filters Bar (Sticky) */}
+      <div className="sticky top-4 z-[100] bg-white/80 backdrop-blur-md border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-6 shadow-lg">
           <div className="flex items-center gap-3">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mes</label>
             <select 
@@ -776,7 +777,7 @@ export default function App() {
 
           <div className="flex items-center gap-3">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mapa</label>
-            <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-200">
+            <div className="flex bg-white/50 p-1 rounded-lg border border-slate-200">
               <button 
                 className={cn("px-3 py-1 text-[10px] rounded-md transition-all font-medium", filters.mapMode === 'range' ? "bg-white text-slate-900 shadow-sm border border-slate-200" : "text-slate-400")}
                 onClick={() => setFilters({ ...filters, mapMode: 'range' })}
@@ -791,8 +792,7 @@ export default function App() {
               </button>
             </div>
           </div>
-        </div>
-      </header>
+      </div>
 
       <div className="space-y-6">
         {/* AI Analysis Section */}
