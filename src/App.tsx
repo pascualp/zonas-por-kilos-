@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import L from 'leaflet';
 import Plotly from 'plotly.js-dist-min';
@@ -24,6 +24,7 @@ import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import 'leaflet/dist/leaflet.css';
 
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -152,6 +153,26 @@ const EMPTY_DATA: DashboardData = {
   daily_zone: []
 };
 
+const rebuildZones = (localData: DailyZoneRecord[]): Zone[] => {
+  const uniqueZoneIds = new Set(localData.map(d => d.Zona));
+  const activeZones: Zone[] = [...INITIAL_ZONES];
+  
+  let unknownOffset = 0;
+  uniqueZoneIds.forEach(zid => {
+    if (!activeZones.find(z => z.id === zid)) {
+      const name = localData.find(d => d.Zona === zid)?.ZonaNombre || `Zona ${zid}`;
+      activeZones.push({
+        id: zid,
+        name: name,
+        lat: 39.6167 + (unknownOffset * 0.03), // Offset slightly from center of Mallorca
+        lng: 2.9833 + (unknownOffset * 0.03)
+      });
+      unknownOffset++;
+    }
+  });
+  return activeZones;
+};
+
 // --- Components ---
 
 const Card = ({ title, children, className, headerAction }: { title: string, children: React.ReactNode, className?: string, headerAction?: React.ReactNode }) => (
@@ -221,11 +242,11 @@ const clearLocalDB = async () => {
 };
 
 export default function App() {
-  const [data, setData] = useState<DashboardData>(INITIAL_DATA);
+  const [data, setData] = useState<DashboardData>(EMPTY_DATA);
   const [filters, setFilters] = useState({
     month: 'ALL',
-    dateFrom: INITIAL_DATA.min_fecha,
-    dateTo: INITIAL_DATA.max_fecha,
+    dateFrom: EMPTY_DATA.min_fecha,
+    dateTo: EMPTY_DATA.max_fecha,
     dow: 'ALL',
     mapMode: 'range' as 'range' | 'day'
   });
@@ -233,12 +254,54 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
   const [isDbLoading, setIsDbLoading] = useState(true);
+  const [isMapReady, setIsMapReady] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'alert' | 'confirm';
+    onConfirm?: () => void;
+  }>({ isOpen: false, title: '', message: '', type: 'alert' });
+
+  const showAlert = (title: string, message: string) => {
+    setModalConfig({ isOpen: true, title, message, type: 'alert' });
+  };
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setModalConfig({ isOpen: true, title, message, type: 'confirm', onConfirm });
+  };
+
+  const closeModal = () => {
+    setModalConfig(prev => ({ ...prev, isOpen: false }));
+  };
   
-  const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
   const layerGroup = useRef<L.LayerGroup | null>(null);
+
+  const mapRef = useCallback((node: HTMLDivElement | null) => {
+    if (node !== null && !leafletMap.current) {
+      leafletMap.current = L.map(node, { zoomControl: true }).setView([39.62, 2.95], 9);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(leafletMap.current);
+      
+      layerGroup.current = L.layerGroup().addTo(leafletMap.current);
+      setIsMapReady(true);
+
+      // Fix for map tiles not loading correctly in some containers
+      setTimeout(() => {
+        leafletMap.current?.invalidateSize();
+      }, 100);
+    } else if (node === null && leafletMap.current) {
+      leafletMap.current.remove();
+      leafletMap.current = null;
+      layerGroup.current = null;
+      setIsMapReady(false);
+    }
+  }, []);
   const chartRef = useRef<HTMLDivElement>(null);
 
   // Load data from IndexedDB on mount
@@ -262,9 +325,10 @@ export default function App() {
           });
 
           const dailyAll = Object.values(dailyAllMap).sort((a, b) => a.Fecha.localeCompare(b.Fecha));
+          const dynamicZones = rebuildZones(localData);
           
           setData({
-            ...INITIAL_DATA,
+            ...EMPTY_DATA,
             source_file: "Base de Datos Local",
             generated_at: "Cargado desde memoria",
             min_fecha: dailyAll[0]?.Fecha || "",
@@ -274,6 +338,7 @@ export default function App() {
             total_euros: dailyAll.reduce((s, r) => s + r.Euros, 0),
             total_bultos: dailyAll.reduce((s, r) => s + r.Bultos, 0),
             months: Array.from(months).sort(),
+            zones: dynamicZones,
             daily_all: dailyAll,
             daily_zone: localData
           });
@@ -297,7 +362,7 @@ export default function App() {
   // --- AI Analysis ---
   const handleAIAnalysis = async () => {
     if (!process.env.GEMINI_API_KEY) {
-      alert("No se ha configurado la API Key de Gemini.");
+      showAlert("Falta API Key", "No se ha configurado la API Key de Gemini.");
       return;
     }
 
@@ -346,7 +411,9 @@ export default function App() {
   // --- Data Processing ---
   
   const filteredDailyZone = useMemo(() => {
-    let rows = data.daily_zone.filter(r => r.Fecha >= filters.dateFrom && r.Fecha <= filters.dateTo);
+    let rows = data.daily_zone;
+    if (filters.dateFrom) rows = rows.filter(r => r.Fecha >= filters.dateFrom);
+    if (filters.dateTo) rows = rows.filter(r => r.Fecha <= filters.dateTo);
     if (filters.dow !== 'ALL') rows = rows.filter(r => r.DiaSemana === filters.dow);
     return rows;
   }, [data.daily_zone, filters.dateFrom, filters.dateTo, filters.dow]);
@@ -410,50 +477,46 @@ export default function App() {
 
   // --- Effects ---
 
-  // Initialize Map
-  useEffect(() => {
-    if (!mapRef.current || leafletMap.current) return;
-
-    leafletMap.current = L.map(mapRef.current, { zoomControl: true }).setView([39.62, 2.95], 9);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap'
-    }).addTo(leafletMap.current);
-    
-    layerGroup.current = L.layerGroup().addTo(leafletMap.current);
-
-    // Fix for map tiles not loading correctly in some containers
-    setTimeout(() => {
-      leafletMap.current?.invalidateSize();
-    }, 100);
-
-    return () => {
-      leafletMap.current?.remove();
-      leafletMap.current = null;
-    };
-  }, []);
+  // Map initialization is handled by mapRef callback
 
   // Update Map Markers
   useEffect(() => {
-    if (!leafletMap.current || !layerGroup.current) return;
+    if (!isMapReady || !leafletMap.current || !layerGroup.current) return;
 
     layerGroup.current.clearLayers();
     
-    const vals = Object.values(zoneAggregation).map((x: any) => x.Kilos);
-    const vmax = Math.max(...vals, 0.000001);
+    const activeZones = data.zones.filter(z => {
+      const a = zoneAggregation[String(z.id)];
+      return a && (a.Kilos > 0 || a.Pedidos > 0);
+    });
+
+    const valsKilos = activeZones.map(z => zoneAggregation[String(z.id)].Kilos);
+    const vmaxKilos = valsKilos.length > 0 ? Math.max(...valsKilos) : 0;
+    
+    const valsPedidos = activeZones.map(z => zoneAggregation[String(z.id)].Pedidos);
+    const vmaxPedidos = valsPedidos.length > 0 ? Math.max(...valsPedidos) : 0;
+
+    const useKilos = vmaxKilos > 0;
+    const vmax = useKilos ? vmaxKilos : (vmaxPedidos > 0 ? vmaxPedidos : 1);
 
     const colorRamp = (t: number) => {
       t = Math.max(0, Math.min(1, t));
+      // Use a more vibrant scale: Green (low) -> Yellow -> Orange -> Red (high)
       const h = 120 - (120 * t);
-      return `hsl(${h}, 85%, 55%)`;
+      return `hsl(${h}, 90%, 50%)`;
     };
 
     data.zones.forEach(z => {
       const a = zoneAggregation[String(z.id)];
       const kg = a ? a.Kilos : 0;
-      const t = kg / vmax;
-      const col = kg > 0 ? colorRamp(t) : "rgba(180,190,210,0.35)";
-      const radius = kg > 0 ? (8 + 25 * Math.sqrt(kg / vmax)) : 6;
+      const val = a ? (useKilos ? a.Kilos : a.Pedidos) : 0;
+      
+      // Calculate relative intensity
+      const t = val / vmax;
+      const col = val > 0 ? colorRamp(t) : "rgba(148,163,184,0.2)";
+      
+      // Radius logic: base 6px, max 40px
+      const radius = val > 0 ? (8 + 32 * Math.pow(t, 0.5)) : 5;
 
       L.circleMarker([z.lat, z.lng], {
         radius: radius,
@@ -461,7 +524,7 @@ export default function App() {
         opacity: 0.9,
         color: col,
         fillColor: col,
-        fillOpacity: kg > 0 ? 0.6 : 0.2
+        fillOpacity: val > 0 ? 0.6 : 0.2
       })
       .bindPopup(`
         <div class="text-slate-900 font-sans">
@@ -476,7 +539,7 @@ export default function App() {
       `)
       .addTo(layerGroup.current!);
     });
-  }, [zoneAggregation, data.zones]);
+  }, [zoneAggregation, data.zones, isMapReady]);
 
   // Initialize/Update Daily Chart
   useEffect(() => {
@@ -485,7 +548,7 @@ export default function App() {
     const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
     const recs = data.daily_all
-      .filter(r => r.Fecha >= filters.dateFrom && r.Fecha <= filters.dateTo)
+      .filter(r => (!filters.dateFrom || r.Fecha >= filters.dateFrom) && (!filters.dateTo || r.Fecha <= filters.dateTo))
       .sort((a, b) => a.Fecha.localeCompare(b.Fecha));
 
     if (recs.length === 0) {
@@ -574,26 +637,36 @@ export default function App() {
       if (d) setSelectedDate(d);
     });
 
-    if (recs.length > 0 && !selectedDate) {
-      setSelectedDate(recs[recs.length - 1].Fecha);
+    if (recs.length > 0) {
+      const isValid = selectedDate && recs.some(r => r.Fecha === selectedDate);
+      if (!isValid) {
+        setSelectedDate(recs[recs.length - 1].Fecha);
+      }
+    } else if (selectedDate) {
+      setSelectedDate(null);
     }
   }, [data.daily_all, filters.dateFrom, filters.dateTo, filters.dow]);
 
   // --- Handlers ---
 
   const handleClearData = async () => {
-    if (window.confirm("¿Estás seguro de que quieres borrar TODOS los datos guardados en este navegador?")) {
-      await clearLocalDB();
-      setData(INITIAL_DATA);
-      setFilters({
-        ...filters,
-        dateFrom: "",
-        dateTo: "",
-        month: 'ALL',
-        dow: 'ALL'
-      });
-      setSelectedDate(null);
-    }
+    showConfirm(
+      "Borrar datos",
+      "¿Estás seguro de que quieres borrar TODOS los datos guardados en este navegador?",
+      async () => {
+        await clearLocalDB();
+        setData(EMPTY_DATA);
+        setFilters({
+          ...filters,
+          dateFrom: "",
+          dateTo: "",
+          month: 'ALL',
+          dow: 'ALL'
+        });
+        setSelectedDate(null);
+        closeModal();
+      }
+    );
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -621,10 +694,38 @@ export default function App() {
 
             const dailyZoneMap: Record<string, DailyZoneRecord> = {};
             const months = new Set<string>();
+
+            const parseNumber = (val: any): number => {
+              if (typeof val === 'number') return val;
+              if (typeof val === 'string') {
+                // Handle Spanish format "1.234,56" -> "1234.56"
+                if (val.includes(',') && val.includes('.') && val.indexOf(',') > val.indexOf('.')) {
+                  const clean = val.replace(/\./g, '').replace(',', '.');
+                  return parseFloat(clean) || 0;
+                }
+                // Handle English format "1,234.56" -> "1234.56"
+                if (val.includes(',') && val.includes('.') && val.indexOf('.') > val.indexOf(',')) {
+                  const clean = val.replace(/,/g, '');
+                  return parseFloat(clean) || 0;
+                }
+                // Handle simple comma decimal "1234,56" -> "1234.56"
+                if (val.includes(',') && !val.includes('.')) {
+                  const clean = val.replace(',', '.');
+                  return parseFloat(clean) || 0;
+                }
+                return parseFloat(val) || 0;
+              }
+              return 0;
+            };
+
             const getVal = (row: any, keys: string[]) => {
               for (const key of keys) {
-                if (row[key] !== undefined) return row[key];
-                const foundKey = Object.keys(row).find(k => k.toLowerCase().trim() === key.toLowerCase().trim());
+                if (row[key] !== undefined && row[key] !== null) return row[key];
+                const foundKey = Object.keys(row).find(k => {
+                  const normalizedK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  const normalizedTarget = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  return normalizedK === normalizedTarget || normalizedK.includes(normalizedTarget);
+                });
                 if (foundKey) return row[foundKey];
               }
               return undefined;
@@ -633,28 +734,49 @@ export default function App() {
             const uniqueOrders = new Set<string>();
 
             rawData.forEach((row: any) => {
-              let rawDate = getVal(row, ['Fecha', 'FECHA', 'Date', 'Día']);
+              let rawDate = getVal(row, ['Fecha', 'FECHA', 'Date', 'Día', 'Day', 'Fec']);
               let dateStr = "";
 
               if (rawDate instanceof Date) {
                 dateStr = rawDate.toISOString().split('T')[0];
               } else if (typeof rawDate === 'number') {
+                // Excel serial date
                 const date = new Date((rawDate - 25569) * 86400 * 1000);
-                dateStr = date.toISOString().split('T')[0];
-              } else if (typeof rawDate === 'string') {
-                const parts = rawDate.split(/[\/\-]/);
-                if (parts.length === 3) {
-                  if (parts[2].length === 4) {
-                    const d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-                    if (!isNaN(d.getTime())) dateStr = d.toISOString().split('T')[0];
-                  } else {
-                    const d = new Date(rawDate);
-                    if (!isNaN(d.getTime())) dateStr = d.toISOString().split('T')[0];
+                if (!isNaN(date.getTime())) dateStr = date.toISOString().split('T')[0];
+              } else if (typeof rawDate === 'string' && rawDate.trim()) {
+                const cleanDate = rawDate.trim();
+                // Try YYYY-MM-DD
+                if (/^\d{4}-\d{2}-\d{2}/.test(cleanDate)) {
+                  dateStr = cleanDate.slice(0, 10);
+                } else {
+                  const parts = cleanDate.split(/[\/\-\.]/);
+                  if (parts.length === 3) {
+                    // Try DD/MM/YYYY or MM/DD/YYYY
+                    let d, m, y;
+                    if (parts[2].length === 4) {
+                      y = parseInt(parts[2]);
+                      // We try to guess if it's DD/MM or MM/DD
+                      const p0 = parseInt(parts[0]);
+                      const p1 = parseInt(parts[1]);
+                      if (p0 > 12) { // Must be DD/MM/YYYY
+                        d = p0; m = p1;
+                      } else if (p1 > 12) { // Must be MM/DD/YYYY
+                        m = p0; d = p1;
+                      } else { // Ambiguous, assume DD/MM/YYYY (European)
+                        d = p0; m = p1;
+                      }
+                      const dateObj = new Date(y, m - 1, d);
+                      if (!isNaN(dateObj.getTime())) dateStr = dateObj.toISOString().split('T')[0];
+                    } else if (parts[0].length === 4) { // YYYY/MM/DD
+                      y = parseInt(parts[0]); m = parseInt(parts[1]); d = parseInt(parts[2]);
+                      const dateObj = new Date(y, m - 1, d);
+                      if (!isNaN(dateObj.getTime())) dateStr = dateObj.toISOString().split('T')[0];
+                    }
                   }
                 }
               }
               
-              if (!dateStr) return;
+              if (!dateStr || dateStr === "NaN-NaN-NaN") return;
 
               let dateObj = new Date(dateStr);
               if (dateObj.getDay() === 0) {
@@ -665,19 +787,28 @@ export default function App() {
               const mes = dateStr.slice(0, 7);
               months.add(mes);
               
-              const zonaRaw = getVal(row, ['Zona', 'ZONA', 'IdZona', 'Ruta', 'RUTA', 'Nombre Zona']);
+              const zonaRaw = getVal(row, ['Zona', 'ZONA', 'IdZona', 'Ruta', 'RUTA', 'Nombre Zona', 'CodZona']);
               let zonaId = parseInt(zonaRaw);
+              let zonaName = String(zonaRaw || '').toUpperCase().trim();
               
               if (isNaN(zonaId)) {
-                const zonaName = String(zonaRaw).toUpperCase().trim();
-                const found = INITIAL_ZONES.find(z => z.name.toUpperCase() === zonaName || zonaName.includes(z.name.toUpperCase()));
-                zonaId = found ? found.id : 0;
+                if (!zonaName) return; // Skip if no zone info
+                const found = INITIAL_ZONES.find(z => z.name.toUpperCase() === zonaName || zonaName.includes(z.name.toUpperCase()) || z.name.toUpperCase().includes(zonaName));
+                if (found) {
+                  zonaId = found.id;
+                } else {
+                  // Generate a deterministic ID for unknown string zones (e.g. > 1000)
+                  zonaId = 1000 + Array.from(zonaName).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                }
+              } else {
+                // If it's a number, use it directly. The rebuildZones function will handle it if it's not in INITIAL_ZONES.
+                if (!zonaName) zonaName = `Zona ${zonaId}`;
               }
 
-              const albaran = String(getVal(row, ['Albaran', 'ALBARAN', 'Albarán', 'Pedido', 'Nº Pedido', 'Referencia']) || '');
-              const kilos = parseFloat(getVal(row, ['Cantidad', 'CANTIDAD', 'Kilos', 'Kg', 'Peso', 'PESO'])) || 0;
-              const euros = parseFloat(getVal(row, ['Importe Bruto', 'IMPORTE BRUTO', 'Importe', 'Euros', 'Venta', 'VENTA'])) || 0;
-              const bultos = parseFloat(getVal(row, ['Bultos', 'BULTOS', 'Paquetes'])) || 0;
+              const albaran = String(getVal(row, ['Albaran', 'ALBARAN', 'Albarán', 'Pedido', 'Nº Pedido', 'Referencia', 'Doc']) || '');
+              const kilos = parseNumber(getVal(row, ['Cantidad', 'CANTIDAD', 'Kilos', 'Kg', 'Peso', 'PESO', 'Cant']));
+              const euros = parseNumber(getVal(row, ['Importe Bruto', 'IMPORTE BRUTO', 'Importe', 'Euros', 'Venta', 'VENTA', 'Total']));
+              const bultos = parseNumber(getVal(row, ['Bultos', 'BULTOS', 'Paquetes', 'Bul']));
 
               const dzKey = `${dateStr}_${zonaId}`;
               const orderKey = albaran ? `${dateStr}_${zonaId}_${albaran}` : null;
@@ -688,7 +819,7 @@ export default function App() {
                 dailyZoneMap[dzKey] = {
                   Fecha: dateStr,
                   Zona: zonaId,
-                  ZonaNombre: zonaInfo ? zonaInfo.name : `Zona ${String(zonaId).padStart(2, '0')}`,
+                  ZonaNombre: zonaInfo ? zonaInfo.name : (zonaName || `Zona ${String(zonaId).padStart(2, '0')}`),
                   Pedidos: 0,
                   Kilos: 0,
                   Euros: 0,
@@ -736,7 +867,7 @@ export default function App() {
       }
 
       if (allNewRecords.length === 0) {
-        alert("No se encontraron datos válidos en los archivos seleccionados.");
+        showAlert("Sin datos", "No se encontraron datos válidos en los archivos seleccionados.");
         setIsProcessing(false);
         return;
       }
@@ -761,6 +892,7 @@ export default function App() {
       });
 
       const mergedDailyAll = Object.values(mergedDailyAllMap).sort((a, b) => a.Fecha.localeCompare(b.Fecha));
+      const dynamicZones = rebuildZones(allLocalData);
 
       setData({
         ...data,
@@ -773,6 +905,7 @@ export default function App() {
         total_euros: mergedDailyAll.reduce((s, r) => s + r.Euros, 0),
         total_bultos: mergedDailyAll.reduce((s, r) => s + r.Bultos, 0),
         months: Array.from(mergedMonths).sort(),
+        zones: dynamicZones,
         daily_all: mergedDailyAll,
         daily_zone: allLocalData
       });
@@ -786,7 +919,7 @@ export default function App() {
 
     } catch (err) {
       console.error("Error processing files:", err);
-      alert("Error al procesar los archivos Excel. Asegúrate de que el formato sea correcto.");
+      showAlert("Error", "Error al procesar los archivos Excel. Asegúrate de que el formato sea correcto.");
     } finally {
       setIsProcessing(false);
     }
@@ -908,7 +1041,7 @@ export default function App() {
                     return;
                   }
                 }
-                setFilters({ ...filters, month: val });
+                setFilters({ ...filters, month: val, dateFrom: data.min_fecha, dateTo: data.max_fecha });
               }}
             >
               <option value="ALL">Todos los meses</option>
@@ -923,17 +1056,17 @@ export default function App() {
                 type="date" 
                 className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 outline-none focus:border-sky-500/50"
                 value={filters.dateFrom}
-                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value, month: 'ALL' })}
               />
               <span className="text-slate-300">→</span>
               <input 
                 type="date" 
                 className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 outline-none focus:border-sky-500/50"
                 value={filters.dateTo}
-                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value, month: 'ALL' })}
               />
               <button 
-                onClick={() => setFilters({ ...filters, dateFrom: data.min_fecha, dateTo: data.max_fecha })}
+                onClick={() => setFilters({ ...filters, dateFrom: data.min_fecha, dateTo: data.max_fecha, month: 'ALL' })}
                 className="text-[10px] font-bold text-sky-500 hover:text-sky-700 px-1.5 py-0.5 rounded hover:bg-sky-50 transition-all border border-sky-100"
                 title="Usar rango máximo disponible"
               >
@@ -941,6 +1074,7 @@ export default function App() {
               </button>
               <select 
                 className="bg-white/50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-500 outline-none focus:border-sky-500/50"
+                value=""
                 onChange={(e) => {
                   const val = e.target.value;
                   if (!val || !data.max_fecha) return;
@@ -953,7 +1087,8 @@ export default function App() {
                   setFilters({ 
                     ...filters, 
                     dateFrom: start.toISOString().split('T')[0], 
-                    dateTo: data.max_fecha 
+                    dateTo: data.max_fecha,
+                    month: 'ALL'
                   });
                 }}
               >
@@ -963,7 +1098,7 @@ export default function App() {
                 <option value="30d">Últimos 30 días</option>
               </select>
               <button 
-                onClick={() => setFilters({ ...filters, dateFrom: '', dateTo: '' })}
+                onClick={() => setFilters({ ...filters, dateFrom: '', dateTo: '', month: 'ALL' })}
                 className="text-slate-300 hover:text-red-400 transition-all"
                 title="Limpiar fechas"
               >
@@ -1197,6 +1332,54 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Custom Modal */}
+      <AnimatePresence>
+        {modalConfig.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center font-sans"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 text-center max-w-sm mx-4"
+            >
+              <h3 className="text-xl font-bold text-slate-900 mb-2">{modalConfig.title}</h3>
+              <p className="text-slate-500 text-sm mb-6">{modalConfig.message}</p>
+              
+              <div className="flex gap-3 justify-center">
+                {modalConfig.type === 'confirm' && (
+                  <button
+                    onClick={closeModal}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    if (modalConfig.type === 'confirm' && modalConfig.onConfirm) {
+                      modalConfig.onConfirm();
+                    } else {
+                      closeModal();
+                    }
+                  }}
+                  className={cn(
+                    "px-4 py-2 rounded-xl font-medium transition-colors text-white",
+                    modalConfig.type === 'confirm' ? "bg-red-500 hover:bg-red-600" : "bg-indigo-600 hover:bg-indigo-700"
+                  )}
+                >
+                  {modalConfig.type === 'confirm' ? 'Borrar Todo' : 'Aceptar'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
