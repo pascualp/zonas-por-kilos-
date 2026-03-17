@@ -13,8 +13,13 @@ import {
   Calendar,
   Upload,
   Info,
-  Trash2
+  Trash2,
+  BrainCircuit,
+  Download,
+  Sparkles
 } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
+import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -173,21 +178,80 @@ const KPI = ({ label, value, icon: Icon, color }: { label: string, value: string
 );
 
 export default function App() {
-  const [data, setData] = useState<DashboardData>(INITIAL_DATA);
+  const [data, setData] = useState<DashboardData>(() => {
+    const saved = localStorage.getItem('dashboard_data');
+    return saved ? JSON.parse(saved) : INITIAL_DATA;
+  });
   const [filters, setFilters] = useState({
     month: 'ALL',
-    dateFrom: INITIAL_DATA.min_fecha,
-    dateTo: INITIAL_DATA.max_fecha,
+    dateFrom: data.min_fecha || INITIAL_DATA.min_fecha,
+    dateTo: data.max_fecha || INITIAL_DATA.max_fecha,
     dow: 'ALL',
     mapMode: 'range' as 'range' | 'day'
   });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
   const layerGroup = useRef<L.LayerGroup | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
+
+  // --- Persistence ---
+  useEffect(() => {
+    localStorage.setItem('dashboard_data', JSON.stringify(data));
+  }, [data]);
+
+  // --- AI Analysis ---
+  const handleAIAnalysis = async () => {
+    if (!process.env.GEMINI_API_KEY) {
+      alert("No se ha configurado la API Key de Gemini.");
+      return;
+    }
+
+    setIsAnalyzing(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      // Prepare a summary for the AI
+      const summary = {
+        total_kilos: data.total_kilos,
+        total_pedidos: data.total_pedidos,
+        top_zones: topZones.map(z => ({ name: z.ZonaNombre, kilos: z.Kilos, pedidos: z.Pedidos })),
+        weekday_stats: weekdayAggregation.map(w => ({ day: w.DiaSemana, kilos: w.Kilos })),
+        period: `${data.min_fecha} a ${data.max_fecha}`
+      };
+
+      const prompt = `Analiza los siguientes datos de logística de una empresa de distribución de frutas y verduras en Mallorca:
+      - Periodo: ${summary.period}
+      - Total Kilos: ${summary.total_kilos.toLocaleString()} kg
+      - Total Pedidos: ${summary.total_pedidos.toLocaleString()}
+      - Top 5 Zonas por Kilos: ${summary.top_zones.slice(0, 5).map(z => `${z.name} (${z.kilos.toLocaleString()} kg)`).join(', ')}
+      - Rendimiento por día: ${summary.weekday_stats.map(w => `${w.day}: ${w.kilos.toLocaleString()} kg`).join(', ')}
+
+      Por favor, proporciona:
+      1. Un resumen ejecutivo rápido.
+      2. Identificación de la zona más crítica o rentable.
+      3. Recomendación logística para optimizar rutas o personal basándote en los días de mayor carga.
+      4. Una curiosidad o tendencia que observes.
+      
+      Responde en español, con un tono profesional pero cercano, usando markdown para el formato.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+      });
+
+      setAiAnalysis(response.text || "No se pudo generar el análisis.");
+    } catch (error) {
+      console.error("Error en análisis IA:", error);
+      setAiAnalysis("Error al conectar con la IA. Por favor, inténtalo de nuevo.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   // --- Data Processing ---
   
@@ -328,8 +392,19 @@ export default function App() {
   useEffect(() => {
     if (!chartRef.current) return;
 
+    const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
     const recs = data.daily_all
-      .filter(r => r.Fecha >= filters.dateFrom && r.Fecha <= filters.dateTo)
+      .filter(r => {
+        const inRange = r.Fecha >= filters.dateFrom && r.Fecha <= filters.dateTo;
+        if (!inRange) return false;
+        if (filters.dow === 'ALL') return true;
+        
+        // Get day name for this date
+        const dateObj = new Date(r.Fecha);
+        const dayName = weekdayNames[dateObj.getDay()];
+        return dayName === filters.dow;
+      })
       .sort((a, b) => a.Fecha.localeCompare(b.Fecha));
 
     const x = recs.map(r => r.Fecha);
@@ -369,7 +444,7 @@ export default function App() {
       barmode: 'overlay'
     }, { displayModeBar: false, responsive: true });
 
-    chartRef.current.on('plotly_click', (ev: any) => {
+    (chartRef.current as any).on('plotly_click', (ev: any) => {
       const d = ev.points?.[0]?.x;
       if (d) setSelectedDate(d);
     });
@@ -377,7 +452,7 @@ export default function App() {
     if (recs.length > 0 && !selectedDate) {
       setSelectedDate(recs[recs.length - 1].Fecha);
     }
-  }, [data.daily_all, filters.dateFrom, filters.dateTo]);
+  }, [data.daily_all, filters.dateFrom, filters.dateTo, filters.dow]);
 
   // --- Handlers ---
 
@@ -572,6 +647,19 @@ export default function App() {
           
           <div className="flex items-center gap-3">
             <button 
+              onClick={handleAIAnalysis}
+              disabled={isAnalyzing}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-medium text-sm shadow-sm border",
+                isAnalyzing 
+                  ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed" 
+                  : "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-500"
+              )}
+            >
+              {isAnalyzing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <BrainCircuit size={16} />}
+              Análisis IA
+            </button>
+            <button 
               onClick={handleClearData}
               className="flex items-center gap-2 bg-white hover:bg-red-50 text-red-600 px-4 py-2 rounded-xl transition-all border border-red-100 font-medium text-sm shadow-sm"
             >
@@ -677,6 +765,35 @@ export default function App() {
       </header>
 
       <div className="space-y-6">
+        {/* AI Analysis Section */}
+        <AnimatePresence>
+          {aiAnalysis && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+            >
+              <Card 
+                title="Análisis Inteligente (Gemini AI)" 
+                headerAction={<Sparkles size={16} className="text-indigo-400" />}
+                className="border-indigo-100 bg-indigo-50/30"
+              >
+                <div className="prose prose-slate prose-sm max-w-none">
+                  <div className="markdown-body">
+                    <Markdown>{aiAnalysis}</Markdown>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setAiAnalysis(null)}
+                  className="mt-4 text-xs text-indigo-500 hover:text-indigo-700 font-medium"
+                >
+                  Cerrar análisis
+                </button>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Map Section */}
         <Card title="Distribución Geográfica" headerAction={<MapIcon size={16} className="text-slate-300" />}>
           <div className="relative">
