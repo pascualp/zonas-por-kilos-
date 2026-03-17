@@ -12,7 +12,8 @@ import {
   MapPin,
   Calendar,
   Upload,
-  Info
+  Info,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -128,6 +129,21 @@ const INITIAL_DATA: DashboardData = {
     {"Fecha": "2025-01-03", "Zona": 0, "ZonaNombre": "PALMA", "DiaSemanaN": 4, "DiaSemana": "Viernes", "Mes": "2025-01", "Pedidos": 34, "Kilos": 137.7, "Euros": 320.98, "Bultos": 24},
     {"Fecha": "2025-01-03", "Zona": 9, "ZonaNombre": "ARENAL", "DiaSemanaN": 4, "DiaSemana": "Viernes", "Mes": "2025-01", "Pedidos": 14, "Kilos": 119.6, "Euros": 213.39, "Bultos": 14}
   ]
+};
+const EMPTY_DATA: DashboardData = {
+  source_file: "Ninguno",
+  generated_at: "-",
+  min_fecha: "",
+  max_fecha: "",
+  total_pedidos: 0,
+  total_kilos: 0,
+  total_euros: 0,
+  total_bultos: 0,
+  months: [],
+  weekdays: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
+  zones: INITIAL_ZONES,
+  daily_all: [],
+  daily_zone: []
 };
 
 // --- Components ---
@@ -365,6 +381,18 @@ export default function App() {
 
   // --- Handlers ---
 
+  const handleClearData = () => {
+    setData(EMPTY_DATA);
+    setFilters({
+      ...filters,
+      dateFrom: "",
+      dateTo: "",
+      month: 'ALL',
+      dow: 'ALL'
+    });
+    setSelectedDate(null);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -543,6 +571,13 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-3">
+            <button 
+              onClick={handleClearData}
+              className="flex items-center gap-2 bg-white hover:bg-red-50 text-red-600 px-4 py-2 rounded-xl transition-all border border-red-100 font-medium text-sm shadow-sm"
+            >
+              <Trash2 size={16} />
+              Borrar Datos
+            </button>
             <label className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl cursor-pointer transition-all border border-slate-200 font-medium text-sm shadow-sm">
               <Upload size={16} />
               Importar Excel
