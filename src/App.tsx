@@ -542,7 +542,7 @@ export default function App() {
         const uniqueOrders = new Set<string>();
 
         rawData.forEach((row: any) => {
-          let rawDate = getVal(row, ['Fecha', 'FECHA', 'Date']);
+          let rawDate = getVal(row, ['Fecha', 'FECHA', 'Date', 'Día']);
           let dateStr = "";
 
           if (rawDate instanceof Date) {
@@ -553,7 +553,6 @@ export default function App() {
           } else if (typeof rawDate === 'string') {
             const parts = rawDate.split(/[\/\-]/);
             if (parts.length === 3) {
-              // Handle DD/MM/YYYY
               if (parts[2].length === 4) {
                 const d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
                 if (!isNaN(d.getTime())) dateStr = d.toISOString().split('T')[0];
@@ -566,29 +565,41 @@ export default function App() {
           
           if (!dateStr) return;
 
-          // Skip Sundays (0 is Sunday)
-          const dateObj = new Date(dateStr);
-          if (dateObj.getDay() === 0) return;
+          let dateObj = new Date(dateStr);
+          if (dateObj.getDay() === 0) {
+            dateObj.setDate(dateObj.getDate() - 1);
+            dateStr = dateObj.toISOString().split('T')[0];
+          }
           
           const mes = dateStr.slice(0, 7);
           months.add(mes);
           
-          const zonaRaw = getVal(row, ['Zona', 'ZONA', 'IdZona']);
-          const zonaId = parseInt(zonaRaw) || 0;
-          const albaran = String(getVal(row, ['Albaran', 'ALBARAN', 'Albarán']) || Math.random());
-          const kilos = parseFloat(getVal(row, ['Cantidad', 'CANTIDAD', 'Kilos', 'Kg'])) || 0;
-          const euros = parseFloat(getVal(row, ['Importe Bruto', 'IMPORTE BRUTO', 'Importe', 'Euros'])) || 0;
-          const bultos = parseFloat(getVal(row, ['Bultos', 'BULTOS'])) || 0;
+          const zonaRaw = getVal(row, ['Zona', 'ZONA', 'IdZona', 'Ruta', 'RUTA', 'Nombre Zona']);
+          let zonaId = parseInt(zonaRaw);
+          
+          // If Zona is a name, try to find its ID
+          if (isNaN(zonaId)) {
+            const zonaName = String(zonaRaw).toUpperCase().trim();
+            const found = INITIAL_ZONES.find(z => z.name.toUpperCase() === zonaName || zonaName.includes(z.name.toUpperCase()));
+            zonaId = found ? found.id : 0;
+          }
+
+          const albaran = String(getVal(row, ['Albaran', 'ALBARAN', 'Albarán', 'Pedido', 'Nº Pedido', 'Referencia']) || '');
+          const kilos = parseFloat(getVal(row, ['Cantidad', 'CANTIDAD', 'Kilos', 'Kg', 'Peso', 'PESO'])) || 0;
+          const euros = parseFloat(getVal(row, ['Importe Bruto', 'IMPORTE BRUTO', 'Importe', 'Euros', 'Venta', 'VENTA'])) || 0;
+          const bultos = parseFloat(getVal(row, ['Bultos', 'BULTOS', 'Paquetes'])) || 0;
 
           const dzKey = `${dateStr}_${zonaId}`;
-          const orderKey = `${dateStr}_${zonaId}_${albaran}`;
+          // Use a fallback for orderKey if albaran is missing to avoid random increments
+          const orderKey = albaran ? `${dateStr}_${zonaId}_${albaran}` : null;
 
           if (!dailyZoneMap[dzKey]) {
             const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+            const zonaInfo = INITIAL_ZONES.find(z => z.id === zonaId);
             dailyZoneMap[dzKey] = {
               Fecha: dateStr,
               Zona: zonaId,
-              ZonaNombre: `Zona ${String(zonaId).padStart(2, '0')}`,
+              ZonaNombre: zonaInfo ? zonaInfo.name : `Zona ${String(zonaId).padStart(2, '0')}`,
               Pedidos: 0,
               Kilos: 0,
               Euros: 0,
@@ -599,20 +610,24 @@ export default function App() {
             };
           }
 
-          // Count unique orders (Albaranes)
-          if (!uniqueOrders.has(orderKey)) {
-            dailyZoneMap[dzKey].Pedidos += 1;
-            uniqueOrders.add(orderKey);
+          if (orderKey) {
+            if (!uniqueOrders.has(orderKey)) {
+              dailyZoneMap[dzKey].Pedidos += 1;
+              uniqueOrders.add(orderKey);
+            }
+          } else {
+            // If no albaran, we count each row as a potential order if it has significant weight
+            if (kilos > 0) dailyZoneMap[dzKey].Pedidos += 0.05; // Fractional to avoid overcounting rows as full orders
           }
 
           dailyZoneMap[dzKey].Kilos += kilos;
           dailyZoneMap[dzKey].Euros += euros;
           dailyZoneMap[dzKey].Bultos += bultos;
-          
-          if (!dailyAllMap[dateStr]) {
-            dailyAllMap[dateStr] = { Fecha: dateStr, Pedidos: 0, Kilos: 0, Euros: 0, Bultos: 0 };
-          }
-          // We'll recalculate dailyAll Pedidos from dailyZone to avoid double counting orders across zones
+        });
+
+        // Round fractional orders if any
+        Object.values(dailyZoneMap).forEach(dz => {
+          dz.Pedidos = Math.max(1, Math.round(dz.Pedidos));
         });
 
         const dailyZone = Object.values(dailyZoneMap);
