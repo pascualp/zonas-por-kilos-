@@ -119,7 +119,7 @@ const INITIAL_DATA: DashboardData = {
   total_euros: 587463.04,
   total_bultos: 45643.0,
   months: ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12"],
-  weekdays: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
+  weekdays: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"],
   zones: INITIAL_ZONES,
   daily_all: [
     {"Fecha": "2025-01-02", "Pedidos": 57, "Kilos": 468.9, "Euros": 835.51, "Bultos": 50}, 
@@ -146,7 +146,7 @@ const EMPTY_DATA: DashboardData = {
   total_euros: 0,
   total_bultos: 0,
   months: [],
-  weekdays: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
+  weekdays: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"],
   zones: INITIAL_ZONES,
   daily_all: [],
   daily_zone: []
@@ -399,6 +399,11 @@ export default function App() {
       .filter(r => r.Fecha >= filters.dateFrom && r.Fecha <= filters.dateTo)
       .sort((a, b) => a.Fecha.localeCompare(b.Fecha));
 
+    if (recs.length === 0) {
+      Plotly.purge(chartRef.current);
+      return;
+    }
+
     const x = recs.map(r => r.Fecha);
     const yP = recs.map(r => r.Pedidos);
     const yK = recs.map(r => r.Kilos);
@@ -560,6 +565,10 @@ export default function App() {
           }
           
           if (!dateStr) return;
+
+          // Skip Sundays (0 is Sunday)
+          const dateObj = new Date(dateStr);
+          if (dateObj.getDay() === 0) return;
           
           const mes = dateStr.slice(0, 7);
           months.add(mes);
@@ -575,7 +584,6 @@ export default function App() {
           const orderKey = `${dateStr}_${zonaId}_${albaran}`;
 
           if (!dailyZoneMap[dzKey]) {
-            const dateObj = new Date(dateStr);
             const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
             dailyZoneMap[dzKey] = {
               Fecha: dateStr,
@@ -650,6 +658,7 @@ export default function App() {
           dateFrom: dailyAll[0]?.Fecha || "",
           dateTo: dailyAll[dailyAll.length - 1]?.Fecha || ""
         });
+        setSelectedDate(dailyAll[dailyAll.length - 1]?.Fecha || null);
 
       } catch (err) {
         console.error("Error processing Excel:", err);
