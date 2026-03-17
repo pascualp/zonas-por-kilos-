@@ -178,20 +178,61 @@ const KPI = ({ label, value, icon: Icon, color }: { label: string, value: string
   </div>
 );
 
-export default function App() {
-  const [data, setData] = useState<DashboardData>(() => {
-    const saved = localStorage.getItem('dashboard_data');
-    return saved ? JSON.parse(saved) : INITIAL_DATA;
+// --- IndexedDB Helper Functions ---
+const DB_NAME = 'LogisticaDB';
+const STORE_NAME = 'DailyData';
+
+const openDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: ['Fecha', 'Zona'] });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
+};
+
+const saveToDB = async (data: DailyZoneRecord[]) => {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const store = tx.objectStore(STORE_NAME);
+  data.forEach(item => store.put(item));
+  return new Promise((resolve) => { tx.oncomplete = () => resolve(true); });
+};
+
+const loadFromDB = async (): Promise<DailyZoneRecord[]> => {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, 'readonly');
+  const store = tx.objectStore(STORE_NAME);
+  const request = store.getAll();
+  return new Promise((resolve) => { request.onsuccess = () => resolve(request.result); });
+};
+
+const clearLocalDB = async () => {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const store = tx.objectStore(STORE_NAME);
+  store.clear();
+  return new Promise((resolve) => { tx.oncomplete = () => resolve(true); });
+};
+
+export default function App() {
+  const [data, setData] = useState<DashboardData>(INITIAL_DATA);
   const [filters, setFilters] = useState({
     month: 'ALL',
-    dateFrom: data.min_fecha || INITIAL_DATA.min_fecha,
-    dateTo: data.max_fecha || INITIAL_DATA.max_fecha,
+    dateFrom: INITIAL_DATA.min_fecha,
+    dateTo: INITIAL_DATA.max_fecha,
     dow: 'ALL',
     mapMode: 'range' as 'range' | 'day'
   });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
+  const [isDbLoading, setIsDbLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   
@@ -200,10 +241,58 @@ export default function App() {
   const layerGroup = useRef<L.LayerGroup | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
 
-  // --- Persistence ---
+  // Load data from IndexedDB on mount
   useEffect(() => {
-    localStorage.setItem('dashboard_data', JSON.stringify(data));
-  }, [data]);
+    const init = async () => {
+      try {
+        const localData = await loadFromDB();
+        if (localData && localData.length > 0) {
+          const dailyAllMap: Record<string, DailyRecord> = {};
+          const months = new Set<string>();
+          
+          localData.forEach(dz => {
+            if (!dailyAllMap[dz.Fecha]) {
+              dailyAllMap[dz.Fecha] = { Fecha: dz.Fecha, Pedidos: 0, Kilos: 0, Euros: 0, Bultos: 0 };
+            }
+            dailyAllMap[dz.Fecha].Pedidos += dz.Pedidos;
+            dailyAllMap[dz.Fecha].Kilos += dz.Kilos;
+            dailyAllMap[dz.Fecha].Euros += dz.Euros;
+            dailyAllMap[dz.Fecha].Bultos += dz.Bultos;
+            months.add(dz.Mes);
+          });
+
+          const dailyAll = Object.values(dailyAllMap).sort((a, b) => a.Fecha.localeCompare(b.Fecha));
+          
+          setData({
+            ...INITIAL_DATA,
+            source_file: "Base de Datos Local",
+            generated_at: "Cargado desde memoria",
+            min_fecha: dailyAll[0]?.Fecha || "",
+            max_fecha: dailyAll[dailyAll.length - 1]?.Fecha || "",
+            total_pedidos: dailyAll.reduce((s, r) => s + r.Pedidos, 0),
+            total_kilos: dailyAll.reduce((s, r) => s + r.Kilos, 0),
+            total_euros: dailyAll.reduce((s, r) => s + r.Euros, 0),
+            total_bultos: dailyAll.reduce((s, r) => s + r.Bultos, 0),
+            months: Array.from(months).sort(),
+            daily_all: dailyAll,
+            daily_zone: localData
+          });
+
+          setFilters(prev => ({
+            ...prev,
+            dateFrom: dailyAll[0]?.Fecha || "",
+            dateTo: dailyAll[dailyAll.length - 1]?.Fecha || ""
+          }));
+          setSelectedDate(dailyAll[dailyAll.length - 1]?.Fecha || null);
+        }
+      } catch (e) {
+        console.error("Error loading local DB", e);
+      } finally {
+        setIsDbLoading(false);
+      }
+    };
+    init();
+  }, []);
 
   // --- AI Analysis ---
   const handleAIAnalysis = async () => {
@@ -492,211 +581,269 @@ export default function App() {
 
   // --- Handlers ---
 
-  const handleClearData = () => {
-    setData(EMPTY_DATA);
-    setFilters({
-      ...filters,
-      dateFrom: "",
-      dateTo: "",
-      month: 'ALL',
-      dow: 'ALL'
-    });
-    setSelectedDate(null);
+  const handleClearData = async () => {
+    if (window.confirm("¿Estás seguro de que quieres borrar TODOS los datos guardados en este navegador?")) {
+      await clearLocalDB();
+      setData(INITIAL_DATA);
+      setFilters({
+        ...filters,
+        dateFrom: "",
+        dateTo: "",
+        month: 'ALL',
+        dow: 'ALL'
+      });
+      setSelectedDate(null);
+    }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     setIsProcessing(true);
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data_buffer = evt.target?.result;
-        const wb = XLSX.read(data_buffer, { type: 'array', cellDates: true });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const rawData = XLSX.utils.sheet_to_json(ws) as any[];
+    setProcessingProgress({ current: 0, total: files.length });
 
-        if (rawData.length === 0) {
-          alert("El archivo Excel parece estar vacío.");
-          setIsProcessing(false);
-          return;
-        }
+    const processFile = (file: File): Promise<DailyZoneRecord[]> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const data_buffer = evt.target?.result;
+            const wb = XLSX.read(data_buffer, { type: 'array', cellDates: true });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const rawData = XLSX.utils.sheet_to_json(ws) as any[];
 
-        const dailyZoneMap: Record<string, DailyZoneRecord> = {};
-        const dailyAllMap: Record<string, DailyRecord> = {};
-        const months = new Set<string>();
-        
-        // Helper to find column value by multiple possible names
-        const getVal = (row: any, keys: string[]) => {
-          for (const key of keys) {
-            if (row[key] !== undefined) return row[key];
-            const foundKey = Object.keys(row).find(k => k.toLowerCase().trim() === key.toLowerCase().trim());
-            if (foundKey) return row[foundKey];
-          }
-          return undefined;
-        };
+            if (rawData.length === 0) {
+              resolve([]);
+              return;
+            }
 
-        // Track unique Albaranes per Date+Zone to count Pedidos correctly
-        const uniqueOrders = new Set<string>();
-
-        rawData.forEach((row: any) => {
-          let rawDate = getVal(row, ['Fecha', 'FECHA', 'Date', 'Día']);
-          let dateStr = "";
-
-          if (rawDate instanceof Date) {
-            dateStr = rawDate.toISOString().split('T')[0];
-          } else if (typeof rawDate === 'number') {
-            const date = new Date((rawDate - 25569) * 86400 * 1000);
-            dateStr = date.toISOString().split('T')[0];
-          } else if (typeof rawDate === 'string') {
-            const parts = rawDate.split(/[\/\-]/);
-            if (parts.length === 3) {
-              if (parts[2].length === 4) {
-                const d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-                if (!isNaN(d.getTime())) dateStr = d.toISOString().split('T')[0];
-              } else {
-                const d = new Date(rawDate);
-                if (!isNaN(d.getTime())) dateStr = d.toISOString().split('T')[0];
+            const dailyZoneMap: Record<string, DailyZoneRecord> = {};
+            const months = new Set<string>();
+            const getVal = (row: any, keys: string[]) => {
+              for (const key of keys) {
+                if (row[key] !== undefined) return row[key];
+                const foundKey = Object.keys(row).find(k => k.toLowerCase().trim() === key.toLowerCase().trim());
+                if (foundKey) return row[foundKey];
               }
-            }
-          }
-          
-          if (!dateStr) return;
-
-          let dateObj = new Date(dateStr);
-          if (dateObj.getDay() === 0) {
-            dateObj.setDate(dateObj.getDate() - 1);
-            dateStr = dateObj.toISOString().split('T')[0];
-          }
-          
-          const mes = dateStr.slice(0, 7);
-          months.add(mes);
-          
-          const zonaRaw = getVal(row, ['Zona', 'ZONA', 'IdZona', 'Ruta', 'RUTA', 'Nombre Zona']);
-          let zonaId = parseInt(zonaRaw);
-          
-          // If Zona is a name, try to find its ID
-          if (isNaN(zonaId)) {
-            const zonaName = String(zonaRaw).toUpperCase().trim();
-            const found = INITIAL_ZONES.find(z => z.name.toUpperCase() === zonaName || zonaName.includes(z.name.toUpperCase()));
-            zonaId = found ? found.id : 0;
-          }
-
-          const albaran = String(getVal(row, ['Albaran', 'ALBARAN', 'Albarán', 'Pedido', 'Nº Pedido', 'Referencia']) || '');
-          const kilos = parseFloat(getVal(row, ['Cantidad', 'CANTIDAD', 'Kilos', 'Kg', 'Peso', 'PESO'])) || 0;
-          const euros = parseFloat(getVal(row, ['Importe Bruto', 'IMPORTE BRUTO', 'Importe', 'Euros', 'Venta', 'VENTA'])) || 0;
-          const bultos = parseFloat(getVal(row, ['Bultos', 'BULTOS', 'Paquetes'])) || 0;
-
-          const dzKey = `${dateStr}_${zonaId}`;
-          // Use a fallback for orderKey if albaran is missing to avoid random increments
-          const orderKey = albaran ? `${dateStr}_${zonaId}_${albaran}` : null;
-
-          if (!dailyZoneMap[dzKey]) {
-            const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-            const zonaInfo = INITIAL_ZONES.find(z => z.id === zonaId);
-            dailyZoneMap[dzKey] = {
-              Fecha: dateStr,
-              Zona: zonaId,
-              ZonaNombre: zonaInfo ? zonaInfo.name : `Zona ${String(zonaId).padStart(2, '0')}`,
-              Pedidos: 0,
-              Kilos: 0,
-              Euros: 0,
-              Bultos: 0,
-              DiaSemanaN: dateObj.getDay(),
-              DiaSemana: weekdayNames[dateObj.getDay()],
-              Mes: mes
+              return undefined;
             };
+
+            const uniqueOrders = new Set<string>();
+
+            rawData.forEach((row: any) => {
+              let rawDate = getVal(row, ['Fecha', 'FECHA', 'Date', 'Día']);
+              let dateStr = "";
+
+              if (rawDate instanceof Date) {
+                dateStr = rawDate.toISOString().split('T')[0];
+              } else if (typeof rawDate === 'number') {
+                const date = new Date((rawDate - 25569) * 86400 * 1000);
+                dateStr = date.toISOString().split('T')[0];
+              } else if (typeof rawDate === 'string') {
+                const parts = rawDate.split(/[\/\-]/);
+                if (parts.length === 3) {
+                  if (parts[2].length === 4) {
+                    const d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                    if (!isNaN(d.getTime())) dateStr = d.toISOString().split('T')[0];
+                  } else {
+                    const d = new Date(rawDate);
+                    if (!isNaN(d.getTime())) dateStr = d.toISOString().split('T')[0];
+                  }
+                }
+              }
+              
+              if (!dateStr) return;
+
+              let dateObj = new Date(dateStr);
+              if (dateObj.getDay() === 0) {
+                dateObj.setDate(dateObj.getDate() - 1);
+                dateStr = dateObj.toISOString().split('T')[0];
+              }
+              
+              const mes = dateStr.slice(0, 7);
+              months.add(mes);
+              
+              const zonaRaw = getVal(row, ['Zona', 'ZONA', 'IdZona', 'Ruta', 'RUTA', 'Nombre Zona']);
+              let zonaId = parseInt(zonaRaw);
+              
+              if (isNaN(zonaId)) {
+                const zonaName = String(zonaRaw).toUpperCase().trim();
+                const found = INITIAL_ZONES.find(z => z.name.toUpperCase() === zonaName || zonaName.includes(z.name.toUpperCase()));
+                zonaId = found ? found.id : 0;
+              }
+
+              const albaran = String(getVal(row, ['Albaran', 'ALBARAN', 'Albarán', 'Pedido', 'Nº Pedido', 'Referencia']) || '');
+              const kilos = parseFloat(getVal(row, ['Cantidad', 'CANTIDAD', 'Kilos', 'Kg', 'Peso', 'PESO'])) || 0;
+              const euros = parseFloat(getVal(row, ['Importe Bruto', 'IMPORTE BRUTO', 'Importe', 'Euros', 'Venta', 'VENTA'])) || 0;
+              const bultos = parseFloat(getVal(row, ['Bultos', 'BULTOS', 'Paquetes'])) || 0;
+
+              const dzKey = `${dateStr}_${zonaId}`;
+              const orderKey = albaran ? `${dateStr}_${zonaId}_${albaran}` : null;
+
+              if (!dailyZoneMap[dzKey]) {
+                const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+                const zonaInfo = INITIAL_ZONES.find(z => z.id === zonaId);
+                dailyZoneMap[dzKey] = {
+                  Fecha: dateStr,
+                  Zona: zonaId,
+                  ZonaNombre: zonaInfo ? zonaInfo.name : `Zona ${String(zonaId).padStart(2, '0')}`,
+                  Pedidos: 0,
+                  Kilos: 0,
+                  Euros: 0,
+                  Bultos: 0,
+                  DiaSemanaN: dateObj.getDay(),
+                  DiaSemana: weekdayNames[dateObj.getDay()],
+                  Mes: mes
+                };
+              }
+
+              if (orderKey) {
+                if (!uniqueOrders.has(orderKey)) {
+                  dailyZoneMap[dzKey].Pedidos += 1;
+                  uniqueOrders.add(orderKey);
+                }
+              } else {
+                if (kilos > 0) dailyZoneMap[dzKey].Pedidos += 0.05;
+              }
+
+              dailyZoneMap[dzKey].Kilos += kilos;
+              dailyZoneMap[dzKey].Euros += euros;
+              dailyZoneMap[dzKey].Bultos += bultos;
+            });
+
+            Object.values(dailyZoneMap).forEach(dz => {
+              dz.Pedidos = Math.max(1, Math.round(dz.Pedidos));
+            });
+
+            resolve(Object.values(dailyZoneMap));
+          } catch (err) {
+            reject(err);
           }
-
-          if (orderKey) {
-            if (!uniqueOrders.has(orderKey)) {
-              dailyZoneMap[dzKey].Pedidos += 1;
-              uniqueOrders.add(orderKey);
-            }
-          } else {
-            // If no albaran, we count each row as a potential order if it has significant weight
-            if (kilos > 0) dailyZoneMap[dzKey].Pedidos += 0.05; // Fractional to avoid overcounting rows as full orders
-          }
-
-          dailyZoneMap[dzKey].Kilos += kilos;
-          dailyZoneMap[dzKey].Euros += euros;
-          dailyZoneMap[dzKey].Bultos += bultos;
-        });
-
-        // Round fractional orders if any
-        Object.values(dailyZoneMap).forEach(dz => {
-          dz.Pedidos = Math.max(1, Math.round(dz.Pedidos));
-        });
-
-        const dailyZone = Object.values(dailyZoneMap);
-        
-        // Recalculate daily totals correctly
-        const finalDailyAllMap: Record<string, DailyRecord> = {};
-        dailyZone.forEach(dz => {
-          if (!finalDailyAllMap[dz.Fecha]) {
-            finalDailyAllMap[dz.Fecha] = { Fecha: dz.Fecha, Pedidos: 0, Kilos: 0, Euros: 0, Bultos: 0 };
-          }
-          finalDailyAllMap[dz.Fecha].Pedidos += dz.Pedidos;
-          finalDailyAllMap[dz.Fecha].Kilos += dz.Kilos;
-          finalDailyAllMap[dz.Fecha].Euros += dz.Euros;
-          finalDailyAllMap[dz.Fecha].Bultos += dz.Bultos;
-        });
-
-        if (dailyZone.length === 0) {
-          alert("No se pudieron encontrar columnas válidas en el Excel. Asegúrate de que tenga columnas como 'Fecha', 'Zona', 'Kilos', etc.");
-          setIsProcessing(false);
-          return;
-        }
-
-        const dailyAll = Object.values(finalDailyAllMap).sort((a, b) => a.Fecha.localeCompare(b.Fecha));
-        const sortedMonths = Array.from(months).sort();
-
-        setData({
-          ...data,
-          source_file: file.name,
-          generated_at: new Date().toLocaleString(),
-          min_fecha: dailyAll[0]?.Fecha || "",
-          max_fecha: dailyAll[dailyAll.length - 1]?.Fecha || "",
-          total_pedidos: dailyAll.reduce((s, r) => s + r.Pedidos, 0),
-          total_kilos: dailyAll.reduce((s, r) => s + r.Kilos, 0),
-          total_euros: dailyAll.reduce((s, r) => s + r.Euros, 0),
-          total_bultos: dailyAll.reduce((s, r) => s + r.Bultos, 0),
-          months: sortedMonths,
-          daily_all: dailyAll,
-          daily_zone: dailyZone
-        });
-
-        setFilters({
-          ...filters,
-          dateFrom: dailyAll[0]?.Fecha || "",
-          dateTo: dailyAll[dailyAll.length - 1]?.Fecha || ""
-        });
-        setSelectedDate(dailyAll[dailyAll.length - 1]?.Fecha || null);
-
-      } catch (err) {
-        console.error("Error processing Excel:", err);
-        alert("Error al procesar el archivo Excel. Asegúrate de que el formato sea correcto.");
-      } finally {
-        setIsProcessing(false);
-      }
+        };
+        reader.onerror = () => reject(new Error("Error al leer el archivo"));
+        reader.readAsArrayBuffer(file);
+      });
     };
-    reader.readAsArrayBuffer(file);
+
+    try {
+      let allNewRecords: DailyZoneRecord[] = [];
+      for (let i = 0; i < files.length; i++) {
+        setProcessingProgress({ current: i + 1, total: files.length });
+        const records = await processFile(files[i]);
+        allNewRecords = [...allNewRecords, ...records];
+      }
+
+      if (allNewRecords.length === 0) {
+        alert("No se encontraron datos válidos en los archivos seleccionados.");
+        setIsProcessing(false);
+        return;
+      }
+
+      // Save all new records to DB
+      await saveToDB(allNewRecords);
+      
+      // Reload everything from DB to ensure consistency and merge
+      const allLocalData = await loadFromDB();
+      const mergedDailyAllMap: Record<string, DailyRecord> = {};
+      const mergedMonths = new Set<string>();
+      
+      allLocalData.forEach(dz => {
+        if (!mergedDailyAllMap[dz.Fecha]) {
+          mergedDailyAllMap[dz.Fecha] = { Fecha: dz.Fecha, Pedidos: 0, Kilos: 0, Euros: 0, Bultos: 0 };
+        }
+        mergedDailyAllMap[dz.Fecha].Pedidos += dz.Pedidos;
+        mergedDailyAllMap[dz.Fecha].Kilos += dz.Kilos;
+        mergedDailyAllMap[dz.Fecha].Euros += dz.Euros;
+        mergedDailyAllMap[dz.Fecha].Bultos += dz.Bultos;
+        mergedMonths.add(dz.Mes);
+      });
+
+      const mergedDailyAll = Object.values(mergedDailyAllMap).sort((a, b) => a.Fecha.localeCompare(b.Fecha));
+
+      setData({
+        ...data,
+        source_file: files.length > 1 ? `${files.length} archivos importados` : files[0].name,
+        generated_at: new Date().toLocaleString(),
+        min_fecha: mergedDailyAll[0]?.Fecha || "",
+        max_fecha: mergedDailyAll[mergedDailyAll.length - 1]?.Fecha || "",
+        total_pedidos: mergedDailyAll.reduce((s, r) => s + r.Pedidos, 0),
+        total_kilos: mergedDailyAll.reduce((s, r) => s + r.Kilos, 0),
+        total_euros: mergedDailyAll.reduce((s, r) => s + r.Euros, 0),
+        total_bultos: mergedDailyAll.reduce((s, r) => s + r.Bultos, 0),
+        months: Array.from(mergedMonths).sort(),
+        daily_all: mergedDailyAll,
+        daily_zone: allLocalData
+      });
+
+      setFilters({
+        ...filters,
+        dateFrom: mergedDailyAll[0]?.Fecha || "",
+        dateTo: mergedDailyAll[mergedDailyAll.length - 1]?.Fecha || ""
+      });
+      setSelectedDate(mergedDailyAll[mergedDailyAll.length - 1]?.Fecha || null);
+
+    } catch (err) {
+      console.error("Error processing files:", err);
+      alert("Error al procesar los archivos Excel. Asegúrate de que el formato sea correcto.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
+
+  if (isDbLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
+          <div className="text-slate-600 font-medium tracking-tight">Cargando base de datos local...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
+      {isProcessing && (
+        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center font-sans">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl border border-slate-200 text-center max-w-sm mx-4">
+            <div className="w-16 h-16 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin mx-auto mb-6" />
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Procesando Datos</h3>
+            <p className="text-slate-500 text-sm mb-4">Estamos analizando y guardando tus archivos en la base de datos local. Esto permite manejar millones de registros.</p>
+            {processingProgress.total > 1 && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <span>Progreso</span>
+                  <span>{processingProgress.current} / {processingProgress.total} archivos</span>
+                </div>
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-indigo-600 h-full transition-all duration-300" 
+                    style={{ width: `${(processingProgress.current / processingProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <header className="flex flex-col gap-4 mb-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3 tracking-tight">
               Dashboard Rutas — Zonas (Kilos)
+              {data.daily_zone.length > 0 && (
+                <span className="bg-emerald-100 text-emerald-700 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full font-bold border border-emerald-200">
+                  DB Local Activa
+                </span>
+              )}
             </h1>
             <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap gap-x-5 gap-y-1 font-medium">
-              <span className="flex items-center gap-1.5">Archivo: <b className="text-slate-700">{data.source_file}</b></span>
-              <span className="flex items-center gap-1.5">Generado: <span className="font-mono text-slate-700">{data.generated_at}</span></span>
+              <span className="flex items-center gap-1.5">Fuente: <b className="text-slate-700">{data.source_file}</b></span>
+              <span className="flex items-center gap-1.5">Registros: <b className="text-slate-700">{data.daily_zone.length.toLocaleString()}</b></span>
             </div>
           </div>
           
@@ -723,8 +870,8 @@ export default function App() {
             </button>
             <label className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl cursor-pointer transition-all border border-slate-200 font-medium text-sm shadow-sm">
               <Upload size={16} />
-              Importar Excel
-              <input type="file" className="hidden" accept=".xls,.xlsx" onChange={handleFileUpload} />
+              Importar Excel(s)
+              <input type="file" className="hidden" accept=".xls,.xlsx" multiple onChange={handleFileUpload} />
             </label>
           </div>
         </div>
