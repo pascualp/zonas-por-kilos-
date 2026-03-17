@@ -1,0 +1,5 @@
+{
+  "name": "Dashboard Rutas y Zonas",
+  "description": "Visualización interactiva de rutas y kilos por zona con capacidad de carga de archivos Excel.",
+  "requestFramePermissions": []
+}
