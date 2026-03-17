@@ -16,7 +16,8 @@ import {
   Trash2,
   BrainCircuit,
   Download,
-  Sparkles
+  Sparkles,
+  RotateCcw
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import Markdown from 'react-markdown';
@@ -760,6 +761,43 @@ export default function App() {
                 value={filters.dateTo}
                 onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               />
+              <button 
+                onClick={() => setFilters({ ...filters, dateFrom: data.min_fecha, dateTo: data.max_fecha })}
+                className="text-[10px] font-bold text-sky-500 hover:text-sky-700 px-1.5 py-0.5 rounded hover:bg-sky-50 transition-all border border-sky-100"
+                title="Usar rango máximo disponible"
+              >
+                MAX
+              </button>
+              <select 
+                className="bg-white/50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-500 outline-none focus:border-sky-500/50"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val || !data.max_fecha) return;
+                  const end = new Date(data.max_fecha);
+                  let start = new Date(data.max_fecha);
+                  if (val === '7d') start.setDate(end.getDate() - 7);
+                  if (val === '15d') start.setDate(end.getDate() - 15);
+                  if (val === '30d') start.setDate(end.getDate() - 30);
+                  
+                  setFilters({ 
+                    ...filters, 
+                    dateFrom: start.toISOString().split('T')[0], 
+                    dateTo: data.max_fecha 
+                  });
+                }}
+              >
+                <option value="">Presets...</option>
+                <option value="7d">Últimos 7 días</option>
+                <option value="15d">Últimos 15 días</option>
+                <option value="30d">Últimos 30 días</option>
+              </select>
+              <button 
+                onClick={() => setFilters({ ...filters, dateFrom: '', dateTo: '' })}
+                className="text-slate-300 hover:text-red-400 transition-all"
+                title="Limpiar fechas"
+              >
+                <Trash2 size={12} />
+              </button>
             </div>
           </div>
 
@@ -792,6 +830,23 @@ export default function App() {
               </button>
             </div>
           </div>
+          <div className="flex-1" />
+          <button 
+            onClick={() => {
+              setFilters({
+                month: 'ALL',
+                dateFrom: data.min_fecha,
+                dateTo: data.max_fecha,
+                dow: 'ALL',
+                mapMode: 'range'
+              });
+              setSelectedDate(null);
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200"
+          >
+            <RotateCcw size={14} />
+            Restablecer
+          </button>
       </div>
 
       <div className="space-y-6">
