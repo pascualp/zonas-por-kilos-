@@ -395,21 +395,38 @@ export default function App() {
     const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
     const recs = data.daily_all
-      .filter(r => {
-        const inRange = r.Fecha >= filters.dateFrom && r.Fecha <= filters.dateTo;
-        if (!inRange) return false;
-        if (filters.dow === 'ALL') return true;
-        
-        // Get day name for this date
-        const dateObj = new Date(r.Fecha);
-        const dayName = weekdayNames[dateObj.getDay()];
-        return dayName === filters.dow;
-      })
+      .filter(r => r.Fecha >= filters.dateFrom && r.Fecha <= filters.dateTo)
       .sort((a, b) => a.Fecha.localeCompare(b.Fecha));
 
     const x = recs.map(r => r.Fecha);
     const yP = recs.map(r => r.Pedidos);
     const yK = recs.map(r => r.Kilos);
+    const dayNames = recs.map(r => {
+      const dateObj = new Date(r.Fecha);
+      return weekdayNames[dateObj.getDay()];
+    });
+
+    // Calculate colors based on DOW filter
+    const barColors = recs.map(r => {
+      if (filters.dow === 'ALL') return 'rgba(249, 115, 22, 0.2)';
+      const dateObj = new Date(r.Fecha);
+      const dayName = weekdayNames[dateObj.getDay()];
+      return dayName === filters.dow ? 'rgba(249, 115, 22, 0.8)' : 'rgba(249, 115, 22, 0.15)';
+    });
+
+    const barLineColors = recs.map(r => {
+      if (filters.dow === 'ALL') return 'rgb(249, 115, 22)';
+      const dateObj = new Date(r.Fecha);
+      const dayName = weekdayNames[dateObj.getDay()];
+      return dayName === filters.dow ? 'rgb(249, 115, 22)' : 'rgba(249, 115, 22, 0.4)';
+    });
+
+    const scatterColors = recs.map(r => {
+      if (filters.dow === 'ALL') return '#0ea5e9';
+      const dateObj = new Date(r.Fecha);
+      const dayName = weekdayNames[dateObj.getDay()];
+      return dayName === filters.dow ? '#0ea5e9' : 'rgba(14, 165, 233, 0.3)';
+    });
 
     Plotly.newPlot(chartRef.current, [
       {
@@ -418,8 +435,12 @@ export default function App() {
         x: x,
         y: yK,
         yaxis: 'y2',
-        marker: { color: 'rgba(249, 115, 22, 0.2)', line: { color: 'rgb(249, 115, 22)', width: 1 } },
-        hovertemplate: '%{x}<br>Kg: %{y:.1f}<extra></extra>'
+        customdata: dayNames,
+        marker: { 
+          color: barColors, 
+          line: { color: barLineColors, width: 1 } 
+        },
+        hovertemplate: '<b>%{customdata}</b> %{x}<br>Kg: %{y:.1f}<extra></extra>'
       },
       {
         type: 'scatter',
@@ -427,9 +448,18 @@ export default function App() {
         name: 'Pedidos',
         x: x,
         y: yP,
-        line: { color: '#0ea5e9', width: 2 },
-        marker: { size: 4, color: '#0ea5e9' },
-        hovertemplate: '%{x}<br>Pedidos: %{y}<extra></extra>'
+        customdata: dayNames,
+        line: { color: 'rgba(14, 165, 233, 0.4)', width: 1 },
+        marker: { 
+          size: recs.map(r => {
+            if (filters.dow === 'ALL') return 4;
+            const dateObj = new Date(r.Fecha);
+            const dayName = weekdayNames[dateObj.getDay()];
+            return dayName === filters.dow ? 8 : 2;
+          }), 
+          color: scatterColors 
+        },
+        hovertemplate: '<b>%{customdata}</b> %{x}<br>Pedidos: %{y}<extra></extra>'
       }
     ], {
       margin: { l: 40, r: 40, t: 10, b: 40 },
