@@ -787,7 +787,7 @@ export default function App() {
               const mes = dateStr.slice(0, 7);
               months.add(mes);
               
-              const zonaRaw = getVal(row, ['Zona', 'ZONA', 'IdZona', 'Ruta', 'RUTA', 'Nombre Zona', 'CodZona']);
+              const zonaRaw = getVal(row, ['Zona', 'ZONA', 'IdZona', 'Ruta', 'RUTA', 'Nombre Zona', 'CodZona', 'ZON']);
               let zonaId = parseInt(zonaRaw);
               let zonaName = String(zonaRaw || '').toUpperCase().trim();
               
@@ -805,10 +805,10 @@ export default function App() {
                 if (!zonaName) zonaName = `Zona ${zonaId}`;
               }
 
-              const albaran = String(getVal(row, ['Albaran', 'ALBARAN', 'Albarán', 'Pedido', 'Nº Pedido', 'Referencia', 'Doc']) || '');
-              const kilos = parseNumber(getVal(row, ['Cantidad', 'CANTIDAD', 'Kilos', 'Kg', 'Peso', 'PESO', 'Cant']));
-              const euros = parseNumber(getVal(row, ['Importe Bruto', 'IMPORTE BRUTO', 'Importe', 'Euros', 'Venta', 'VENTA', 'Total']));
-              const bultos = parseNumber(getVal(row, ['Bultos', 'BULTOS', 'Paquetes', 'Bul']));
+              const albaran = String(getVal(row, ['Albaran', 'ALBARAN', 'Albarán', 'Pedido', 'Nº Pedido', 'Referencia', 'Doc', 'ALB']) || '');
+              const kilos = parseNumber(getVal(row, ['Cantid', 'Cantidad', 'CANTIDAD', 'Kilos', 'Kg', 'Peso', 'PESO', 'Cant', 'CANT']));
+              const euros = parseNumber(getVal(row, ['Importe', 'Importe Bruto', 'IMPORTE BRUTO', 'Euros', 'Venta', 'VENTA', 'Total', 'IMP']));
+              const bultos = parseNumber(getVal(row, ['Bultos', 'BULTOS', 'Paquetes', 'Bul', 'BUL']));
 
               const dzKey = `${dateStr}_${zonaId}`;
               const orderKey = albaran ? `${dateStr}_${zonaId}_${albaran}` : null;
