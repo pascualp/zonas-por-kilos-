@@ -107,7 +107,101 @@ const INITIAL_ZONES: Zone[] = [
   {"id": 31, "name": "SANTANYI", "lat": 39.355, "lng": 3.13}, 
   {"id": 32, "name": "CALVIA", "lat": 39.565, "lng": 2.506}, 
   {"id": 33, "name": "CAMPOS", "lat": 39.432, "lng": 3.019}, 
-  {"id": 34, "name": "CANYAMEL", "lat": 39.655, "lng": 3.45}
+  {"id": 34, "name": "CANYAMEL", "lat": 39.655, "lng": 3.45},
+  {"id": 35, "name": "FELANITX", "lat": 39.469, "lng": 3.148},
+  {"id": 36, "name": "ARTA", "lat": 39.693, "lng": 3.35},
+  {"id": 37, "name": "CAPDEPERA", "lat": 39.703, "lng": 3.433},
+  {"id": 38, "name": "SANTA MARIA", "lat": 39.651, "lng": 2.795},
+  {"id": 39, "name": "ALARO", "lat": 39.706, "lng": 2.791},
+  {"id": 40, "name": "BINISSALEM", "lat": 39.684, "lng": 2.842},
+  {"id": 41, "name": "CONSELL", "lat": 39.667, "lng": 2.813},
+  {"id": 42, "name": "SANTA EUGENIA", "lat": 39.624, "lng": 2.837},
+  {"id": 43, "name": "SENCELLES", "lat": 39.646, "lng": 2.897},
+  {"id": 44, "name": "COSTITX", "lat": 39.657, "lng": 2.949},
+  {"id": 45, "name": "LLUBI", "lat": 39.698, "lng": 3.004},
+  {"id": 46, "name": "MARIA DE LA SALUT", "lat": 39.679, "lng": 3.073},
+  {"id": 47, "name": "ARIANY", "lat": 39.65, "lng": 3.111},
+  {"id": 48, "name": "SANT JOAN", "lat": 39.593, "lng": 3.039},
+  {"id": 49, "name": "VILAFRANCA", "lat": 39.567, "lng": 3.126},
+  {"id": 50, "name": "PORRERES", "lat": 39.518, "lng": 3.022},
+  {"id": 51, "name": "ALGAIDA", "lat": 39.56, "lng": 2.894},
+  {"id": 52, "name": "SES SALINES", "lat": 39.338, "lng": 3.053},
+  {"id": 53, "name": "PETRA", "lat": 39.613, "lng": 3.111},
+  {"id": 54, "name": "SANTA MARGALIDA", "lat": 39.701, "lng": 3.103},
+  {"id": 55, "name": "MURO", "lat": 39.733, "lng": 3.023},
+  {"id": 56, "name": "SA POBLA", "lat": 39.769, "lng": 3.002},
+  {"id": 57, "name": "BUGER", "lat": 39.756, "lng": 2.984},
+  {"id": 58, "name": "CAMPANET", "lat": 39.774, "lng": 2.966},
+  {"id": 59, "name": "SELVA", "lat": 39.754, "lng": 2.901},
+  {"id": 60, "name": "MANCOR DE LA VALL", "lat": 39.75, "lng": 2.872},
+  {"id": 61, "name": "ESCORCA", "lat": 39.824, "lng": 2.883},
+  {"id": 62, "name": "FORNALUTX", "lat": 39.775, "lng": 2.741},
+  {"id": 63, "name": "BUNYOLA", "lat": 39.696, "lng": 2.7},
+  {"id": 64, "name": "DEIA", "lat": 39.748, "lng": 2.648},
+  {"id": 65, "name": "BANYALBUFAR", "lat": 39.687, "lng": 2.513},
+  {"id": 66, "name": "ESTELLENCS", "lat": 39.653, "lng": 2.482},
+  {"id": 67, "name": "PUIGPUNYENT", "lat": 39.622, "lng": 2.527},
+  {"id": 68, "name": "MARRATXI", "lat": 39.613, "lng": 2.721},
+  {"id": 69, "name": "LLORET DE VISTALEGRE", "lat": 39.617, "lng": 2.967},
+  {"id": 70, "name": "SINEU", "lat": 39.642, "lng": 3.011},
+  {"id": 71, "name": "LUCH", "lat": 39.82, "lng": 2.88},
+  {"id": 72, "name": "SA CALOBRA", "lat": 39.85, "lng": 2.8},
+  {"id": 73, "name": "CALA TUENT", "lat": 39.84, "lng": 2.78},
+  {"id": 74, "name": "PORT DE SOLLER", "lat": 39.79, "lng": 2.69},
+  {"id": 75, "name": "PORT D'ANDRATX", "lat": 39.54, "lng": 2.38},
+  {"id": 76, "name": "PORT DE POLLENÇA", "lat": 39.9, "lng": 3.08},
+  {"id": 77, "name": "PORT D'ALCUDIA", "lat": 39.84, "lng": 3.13},
+  {"id": 78, "name": "SON SERVERA", "lat": 39.62, "lng": 3.36},
+  {"id": 79, "name": "S'ILLOT", "lat": 39.56, "lng": 3.37},
+  {"id": 80, "name": "SA COMA", "lat": 39.57, "lng": 3.37},
+  {"id": 81, "name": "CALA BONA", "lat": 39.61, "lng": 3.39},
+  {"id": 82, "name": "PORTO PETRO", "lat": 39.36, "lng": 3.21},
+  {"id": 83, "name": "CALA FIGUERA", "lat": 39.33, "lng": 3.17},
+  {"id": 84, "name": "CALA LLOMBARDS", "lat": 39.32, "lng": 3.14},
+  {"id": 85, "name": "CALA SANTANYI", "lat": 39.33, "lng": 3.14},
+  {"id": 86, "name": "CALA EGOS", "lat": 39.36, "lng": 3.22},
+  {"id": 87, "name": "CALA MONDRAGO", "lat": 39.35, "lng": 3.19},
+  {"id": 88, "name": "CALA MESQUIDA", "lat": 39.74, "lng": 3.43},
+  {"id": 89, "name": "CALA AGULLA", "lat": 39.72, "lng": 3.46},
+  {"id": 90, "name": "FONT DE SA CALA", "lat": 39.68, "lng": 3.45},
+  {"id": 91, "name": "COSTA DELS PINS", "lat": 39.63, "lng": 3.4},
+  {"id": 92, "name": "SON CALIU", "lat": 39.52, "lng": 2.55},
+  {"id": 93, "name": "PORTALS NOUS", "lat": 39.53, "lng": 2.56},
+  {"id": 94, "name": "BENDINAT", "lat": 39.54, "lng": 2.58},
+  {"id": 95, "name": "CAS CATALA", "lat": 39.55, "lng": 2.6},
+  {"id": 96, "name": "GENOVA", "lat": 39.56, "lng": 2.6},
+  {"id": 97, "name": "ESTABLIMENTS", "lat": 39.6, "lng": 2.63},
+  {"id": 98, "name": "SON SARDINA", "lat": 39.61, "lng": 2.65},
+  {"id": 99, "name": "LA VILETA", "lat": 39.58, "lng": 2.61},
+  {"id": 100, "name": "SON RAPINYA", "lat": 39.58, "lng": 2.62},
+  {"id": 101, "name": "SON ROCA", "lat": 39.59, "lng": 2.6},
+  {"id": 102, "name": "SON VIDA", "lat": 39.58, "lng": 2.58},
+  {"id": 103, "name": "ES COLL D'EN RABASSA", "lat": 39.55, "lng": 2.69},
+  {"id": 104, "name": "CAN PASTILLA", "lat": 39.53, "lng": 2.71},
+  {"id": 105, "name": "ES MOLINAR", "lat": 39.56, "lng": 2.67},
+  {"id": 106, "name": "PORTITXOL", "lat": 39.56, "lng": 2.66},
+  {"id": 107, "name": "CIUTAT JARDÍ", "lat": 39.55, "lng": 2.68},
+  {"id": 108, "name": "ES PONT D'INCA", "lat": 39.59, "lng": 2.7},
+  {"id": 109, "name": "SA CABANETA", "lat": 39.61, "lng": 2.73},
+  {"id": 110, "name": "PORTOL", "lat": 39.62, "lng": 2.74},
+  {"id": 111, "name": "SANTA MARIA DEL CAMI", "lat": 39.65, "lng": 2.79},
+  {"id": 112, "name": "ES JORNETS", "lat": 39.64, "lng": 2.92},
+  {"id": 113, "name": "RUBERTS", "lat": 39.63, "lng": 2.93},
+  {"id": 114, "name": "LLUCMAJOR PUEBLO", "lat": 39.49, "lng": 2.89},
+  {"id": 115, "name": "BADIA GRAN", "lat": 39.43, "lng": 2.75},
+  {"id": 116, "name": "BADIA BLAVA", "lat": 39.44, "lng": 2.74},
+  {"id": 117, "name": "MAIRIS", "lat": 39.45, "lng": 2.73},
+  {"id": 118, "name": "SA TORRE", "lat": 39.45, "lng": 2.72},
+  {"id": 119, "name": "LAS PALMERAS", "lat": 39.47, "lng": 2.73},
+  {"id": 120, "name": "PUIG DE ROS", "lat": 39.44, "lng": 2.72},
+  {"id": 121, "name": "MAIORIS DECIMA", "lat": 39.45, "lng": 2.73},
+  {"id": 122, "name": "TOLERIC", "lat": 39.42, "lng": 2.77},
+  {"id": 123, "name": "SON VERI NOU", "lat": 39.49, "lng": 2.74},
+  {"id": 124, "name": "CALA BLAVA", "lat": 39.48, "lng": 2.73},
+  {"id": 125, "name": "BELLAVISTA", "lat": 39.5, "lng": 2.74},
+  {"id": 126, "name": "SON OLIVER", "lat": 39.52, "lng": 2.8},
+  {"id": 127, "name": "SON GUAL", "lat": 39.55, "lng": 2.82},
+  {"id": 128, "name": "XORRELS", "lat": 39.56, "lng": 2.83}
 ];
 
 const INITIAL_DATA: DashboardData = {
@@ -153,24 +247,23 @@ const EMPTY_DATA: DashboardData = {
   daily_zone: []
 };
 
+const MALLORCA_BOUNDS: L.LatLngBoundsExpression = [
+  [39.1, 2.2], // Suroeste
+  [40.1, 3.6]  // Noreste
+];
+
 const rebuildZones = (localData: DailyZoneRecord[]): Zone[] => {
   const uniqueZoneIds = new Set(localData.map(d => d.Zona));
-  const activeZones: Zone[] = [...INITIAL_ZONES];
+  const result: Zone[] = [];
   
-  let unknownOffset = 0;
   uniqueZoneIds.forEach(zid => {
-    if (!activeZones.find(z => z.id === zid)) {
-      const name = localData.find(d => d.Zona === zid)?.ZonaNombre || `Zona ${zid}`;
-      activeZones.push({
-        id: zid,
-        name: name,
-        lat: 39.6167 + (unknownOffset * 0.03), // Offset slightly from center of Mallorca
-        lng: 2.9833 + (unknownOffset * 0.03)
-      });
-      unknownOffset++;
+    const foundInInitial = INITIAL_ZONES.find(z => z.id === zid);
+    if (foundInInitial) {
+      result.push(foundInInitial);
     }
+    // Unknown zones are no longer added to the map to avoid the "circle" effect
   });
-  return activeZones;
+  return result;
 };
 
 // --- Components ---
@@ -221,7 +314,28 @@ const saveToDB = async (data: DailyZoneRecord[]) => {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
   const store = tx.objectStore(STORE_NAME);
-  data.forEach(item => store.put(item));
+  
+  for (const item of data) {
+    // We need to handle this sequentially or with a smarter merge
+    // Since we're in a transaction, we can get and put
+    const request = store.get([item.Fecha, item.Zona]);
+    await new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        const existing = request.result;
+        if (existing) {
+          existing.Pedidos += item.Pedidos;
+          existing.Kilos += item.Kilos;
+          existing.Euros += item.Euros;
+          existing.Bultos += item.Bultos;
+          store.put(existing);
+        } else {
+          store.put(item);
+        }
+        resolve(true);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
   return new Promise((resolve) => { tx.oncomplete = () => resolve(true); });
 };
 
@@ -282,9 +396,14 @@ export default function App() {
 
   const mapRef = useCallback((node: HTMLDivElement | null) => {
     if (node !== null && !leafletMap.current) {
-      leafletMap.current = L.map(node, { zoomControl: true }).setView([39.62, 2.95], 9);
+      leafletMap.current = L.map(node, { 
+        zoomControl: true,
+        maxBounds: MALLORCA_BOUNDS,
+        maxBoundsViscosity: 1.0
+      }).setView([39.62, 2.95], 9);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
+        minZoom: 8,
         attribution: '&copy; OpenStreetMap'
       }).addTo(leafletMap.current);
       
@@ -511,6 +630,9 @@ export default function App() {
       const kg = a ? a.Kilos : 0;
       const val = a ? (useKilos ? a.Kilos : a.Pedidos) : 0;
       
+      // Only show zones that have data for the current filters
+      if (val <= 0) return;
+      
       // Calculate relative intensity
       const t = val / vmax;
       const col = val > 0 ? colorRamp(t) : "rgba(148,163,184,0.2)";
@@ -692,163 +814,178 @@ export default function App() {
               return;
             }
 
-            const dailyZoneMap: Record<string, DailyZoneRecord> = {};
-            const months = new Set<string>();
-
-            const parseNumber = (val: any): number => {
-              if (typeof val === 'number') return val;
-              if (typeof val === 'string') {
-                // Handle Spanish format "1.234,56" -> "1234.56"
-                if (val.includes(',') && val.includes('.') && val.indexOf(',') > val.indexOf('.')) {
-                  const clean = val.replace(/\./g, '').replace(',', '.');
-                  return parseFloat(clean) || 0;
-                }
-                // Handle English format "1,234.56" -> "1234.56"
-                if (val.includes(',') && val.includes('.') && val.indexOf('.') > val.indexOf(',')) {
-                  const clean = val.replace(/,/g, '');
-                  return parseFloat(clean) || 0;
-                }
-                // Handle simple comma decimal "1234,56" -> "1234.56"
-                if (val.includes(',') && !val.includes('.')) {
-                  const clean = val.replace(',', '.');
-                  return parseFloat(clean) || 0;
-                }
-                return parseFloat(val) || 0;
-              }
-              return 0;
-            };
-
-            const getVal = (row: any, keys: string[]) => {
-              for (const key of keys) {
-                if (row[key] !== undefined && row[key] !== null) return row[key];
-                const foundKey = Object.keys(row).find(k => {
-                  const normalizedK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-                  const normalizedTarget = key.toLowerCase().replace(/[^a-z0-9]/g, '');
-                  return normalizedK === normalizedTarget || normalizedK.includes(normalizedTarget);
-                });
-                if (foundKey) return row[foundKey];
-              }
-              return undefined;
-            };
-
+            const fileResults: DailyZoneRecord[] = [];
             const uniqueOrders = new Set<string>();
+            const dailyZoneMap: Record<string, DailyZoneRecord> = {};
 
-            rawData.forEach((row: any) => {
-              let rawDate = getVal(row, ['Fecha', 'FECHA', 'Date', 'Día', 'Day', 'Fec']);
-              let dateStr = "";
+            // Process all sheets in the workbook
+            wb.SheetNames.forEach(wsname => {
+              const ws = wb.Sheets[wsname];
+              const rawData = XLSX.utils.sheet_to_json(ws) as any[];
+              if (rawData.length === 0) return;
 
-              if (rawDate instanceof Date) {
-                dateStr = rawDate.toISOString().split('T')[0];
-              } else if (typeof rawDate === 'number') {
-                // Excel serial date
-                const date = new Date((rawDate - 25569) * 86400 * 1000);
-                if (!isNaN(date.getTime())) dateStr = date.toISOString().split('T')[0];
-              } else if (typeof rawDate === 'string' && rawDate.trim()) {
-                const cleanDate = rawDate.trim();
-                // Try YYYY-MM-DD
-                if (/^\d{4}-\d{2}-\d{2}/.test(cleanDate)) {
-                  dateStr = cleanDate.slice(0, 10);
-                } else {
-                  const parts = cleanDate.split(/[\/\-\.]/);
-                  if (parts.length === 3) {
-                    // Try DD/MM/YYYY or MM/DD/YYYY
-                    let d, m, y;
-                    if (parts[2].length === 4) {
-                      y = parseInt(parts[2]);
-                      // We try to guess if it's DD/MM or MM/DD
-                      const p0 = parseInt(parts[0]);
-                      const p1 = parseInt(parts[1]);
-                      if (p0 > 12) { // Must be DD/MM/YYYY
-                        d = p0; m = p1;
-                      } else if (p1 > 12) { // Must be MM/DD/YYYY
-                        m = p0; d = p1;
-                      } else { // Ambiguous, assume DD/MM/YYYY (European)
-                        d = p0; m = p1;
+              const parseNumber = (val: any): number => {
+                if (typeof val === 'number') return val;
+                if (typeof val === 'string') {
+                  const cleanStr = val.trim();
+                  if (!cleanStr) return 0;
+                  // Handle Spanish format "1.234,56" -> "1234.56"
+                  if (cleanStr.includes(',') && cleanStr.includes('.') && cleanStr.indexOf(',') > cleanStr.indexOf('.')) {
+                    const clean = cleanStr.replace(/\./g, '').replace(',', '.');
+                    return parseFloat(clean) || 0;
+                  }
+                  // Handle English format "1,234.56" -> "1234.56"
+                  if (cleanStr.includes(',') && cleanStr.includes('.') && cleanStr.indexOf('.') > cleanStr.indexOf(',')) {
+                    const clean = cleanStr.replace(/,/g, '');
+                    return parseFloat(clean) || 0;
+                  }
+                  // Handle simple comma decimal "1234,56" -> "1234.56"
+                  if (cleanStr.includes(',') && !cleanStr.includes('.')) {
+                    const clean = cleanStr.replace(',', '.');
+                    return parseFloat(clean) || 0;
+                  }
+                  return parseFloat(cleanStr) || 0;
+                }
+                return 0;
+              };
+
+              const getVal = (row: any, keys: string[]) => {
+                const rowKeys = Object.keys(row);
+                for (const targetKey of keys) {
+                  // 1. Exact match
+                  if (row[targetKey] !== undefined && row[targetKey] !== null) return row[targetKey];
+                  
+                  // 2. Case-insensitive and fuzzy match
+                  const normalizedTarget = targetKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  const foundKey = rowKeys.find(k => {
+                    const normalizedK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return normalizedK === normalizedTarget || 
+                           normalizedK.includes(normalizedTarget) || 
+                           normalizedTarget.includes(normalizedK);
+                  });
+                  if (foundKey) return row[foundKey];
+                }
+                return undefined;
+              };
+
+              rawData.forEach((row: any) => {
+                let rawDate = getVal(row, ['Fecha', 'FECHA', 'Date', 'Día', 'Day', 'Fec', 'F']);
+                let dateStr = "";
+
+                if (rawDate instanceof Date) {
+                  dateStr = rawDate.toISOString().split('T')[0];
+                } else if (typeof rawDate === 'number') {
+                  // Excel serial date
+                  const date = new Date((rawDate - 25569) * 86400 * 1000);
+                  if (!isNaN(date.getTime())) dateStr = date.toISOString().split('T')[0];
+                } else if (typeof rawDate === 'string' && rawDate.trim()) {
+                  const cleanDate = rawDate.trim();
+                  if (/^\d{4}-\d{2}-\d{2}/.test(cleanDate)) {
+                    dateStr = cleanDate.slice(0, 10);
+                  } else {
+                    const parts = cleanDate.split(/[\/\-\.]/);
+                    if (parts.length === 3) {
+                      let d, m, y;
+                      if (parts[2].length === 4) {
+                        y = parseInt(parts[2]);
+                        const p0 = parseInt(parts[0]);
+                        const p1 = parseInt(parts[1]);
+                        if (p0 > 12) { d = p0; m = p1; }
+                        else if (p1 > 12) { m = p0; d = p1; }
+                        else { d = p0; m = p1; } // Assume DD/MM/YYYY
+                        const dateObj = new Date(y, m - 1, d);
+                        if (!isNaN(dateObj.getTime())) dateStr = dateObj.toISOString().split('T')[0];
+                      } else if (parts[0].length === 4) {
+                        y = parseInt(parts[0]); m = parseInt(parts[1]); d = parseInt(parts[2]);
+                        const dateObj = new Date(y, m - 1, d);
+                        if (!isNaN(dateObj.getTime())) dateStr = dateObj.toISOString().split('T')[0];
                       }
-                      const dateObj = new Date(y, m - 1, d);
-                      if (!isNaN(dateObj.getTime())) dateStr = dateObj.toISOString().split('T')[0];
-                    } else if (parts[0].length === 4) { // YYYY/MM/DD
-                      y = parseInt(parts[0]); m = parseInt(parts[1]); d = parseInt(parts[2]);
-                      const dateObj = new Date(y, m - 1, d);
-                      if (!isNaN(dateObj.getTime())) dateStr = dateObj.toISOString().split('T')[0];
                     }
                   }
                 }
-              }
-              
-              if (!dateStr || dateStr === "NaN-NaN-NaN") return;
+                
+                if (!dateStr || dateStr === "NaN-NaN-NaN") return;
 
-              let dateObj = new Date(dateStr);
-              if (dateObj.getDay() === 0) {
-                dateObj.setDate(dateObj.getDate() - 1);
-                dateStr = dateObj.toISOString().split('T')[0];
-              }
-              
-              const mes = dateStr.slice(0, 7);
-              months.add(mes);
-              
-              const zonaRaw = getVal(row, ['Zona', 'ZONA', 'IdZona', 'Ruta', 'RUTA', 'Nombre Zona', 'CodZona', 'ZON']);
-              let zonaId = parseInt(zonaRaw);
-              let zonaName = String(zonaRaw || '').toUpperCase().trim();
-              
-              if (isNaN(zonaId)) {
-                if (!zonaName) return; // Skip if no zone info
-                const found = INITIAL_ZONES.find(z => z.name.toUpperCase() === zonaName || zonaName.includes(z.name.toUpperCase()) || z.name.toUpperCase().includes(zonaName));
-                if (found) {
-                  zonaId = found.id;
+                let dateObj = new Date(dateStr);
+                if (dateObj.getDay() === 0) {
+                  dateObj.setDate(dateObj.getDate() - 1);
+                  dateStr = dateObj.toISOString().split('T')[0];
+                }
+                
+                const mes = dateStr.slice(0, 7);
+                
+                const zonaRaw = getVal(row, ['Zona', 'ZONA', 'IdZona', 'Ruta', 'RUTA', 'Nombre Zona', 'CodZona', 'ZON', 'Z']);
+                let zonaId = parseInt(zonaRaw);
+                let zonaName = String(zonaRaw || '').toUpperCase().trim();
+                
+                if (isNaN(zonaId)) {
+                  if (!zonaName) return;
+                  // More aggressive matching: normalize and check for partial matches
+                  const normName = zonaName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                  const found = INITIAL_ZONES.find(z => {
+                    const zNorm = z.name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    return zNorm === normName || zNorm.includes(normName) || normName.includes(zNorm);
+                  });
+                  
+                  if (found) {
+                    zonaId = found.id;
+                    zonaName = found.name;
+                  } else {
+                    zonaId = 1000 + Array.from(zonaName).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                  }
                 } else {
-                  // Generate a deterministic ID for unknown string zones (e.g. > 1000)
-                  zonaId = 1000 + Array.from(zonaName).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                  // If we have an ID, check if it's in our initial list to get the correct name
+                  const found = INITIAL_ZONES.find(z => z.id === zonaId);
+                  if (found) {
+                    zonaName = found.name;
+                  } else if (!zonaName) {
+                    zonaName = `Zona ${zonaId}`;
+                  }
                 }
-              } else {
-                // If it's a number, use it directly. The rebuildZones function will handle it if it's not in INITIAL_ZONES.
-                if (!zonaName) zonaName = `Zona ${zonaId}`;
-              }
 
-              const albaran = String(getVal(row, ['Albaran', 'ALBARAN', 'Albarán', 'Pedido', 'Nº Pedido', 'Referencia', 'Doc', 'ALB']) || '');
-              const kilos = parseNumber(getVal(row, ['Cantid', 'Cantidad', 'CANTIDAD', 'Kilos', 'Kg', 'Peso', 'PESO', 'Cant', 'CANT']));
-              const euros = parseNumber(getVal(row, ['Importe', 'Importe Bruto', 'IMPORTE BRUTO', 'Euros', 'Venta', 'VENTA', 'Total', 'IMP']));
-              const bultos = parseNumber(getVal(row, ['Bultos', 'BULTOS', 'Paquetes', 'Bul', 'BUL']));
+                const albaran = String(getVal(row, ['Albaran', 'ALBARAN', 'Albarán', 'Pedido', 'Nº Pedido', 'Referencia', 'Doc', 'ALB', 'A']) || '');
+                const kilos = parseNumber(getVal(row, ['Cantid', 'Cantidad', 'CANTIDAD', 'Kilos', 'Kg', 'Peso', 'PESO', 'Cant', 'CANT', 'C']));
+                const euros = parseNumber(getVal(row, ['Importe', 'Importe Bruto', 'IMPORTE BRUTO', 'Importe', 'Euros', 'Venta', 'VENTA', 'Total', 'IMP', 'I']));
+                const bultos = parseNumber(getVal(row, ['Bultos', 'BULTOS', 'Paquetes', 'Bul', 'BUL', 'B']));
 
-              const dzKey = `${dateStr}_${zonaId}`;
-              const orderKey = albaran ? `${dateStr}_${zonaId}_${albaran}` : null;
+                const dzKey = `${dateStr}_${zonaId}`;
+                const orderKey = albaran ? `${dateStr}_${zonaId}_${albaran}` : null;
 
-              if (!dailyZoneMap[dzKey]) {
-                const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-                const zonaInfo = INITIAL_ZONES.find(z => z.id === zonaId);
-                dailyZoneMap[dzKey] = {
-                  Fecha: dateStr,
-                  Zona: zonaId,
-                  ZonaNombre: zonaInfo ? zonaInfo.name : (zonaName || `Zona ${String(zonaId).padStart(2, '0')}`),
-                  Pedidos: 0,
-                  Kilos: 0,
-                  Euros: 0,
-                  Bultos: 0,
-                  DiaSemanaN: dateObj.getDay(),
-                  DiaSemana: weekdayNames[dateObj.getDay()],
-                  Mes: mes
-                };
-              }
-
-              if (orderKey) {
-                if (!uniqueOrders.has(orderKey)) {
-                  dailyZoneMap[dzKey].Pedidos += 1;
-                  uniqueOrders.add(orderKey);
+                if (!dailyZoneMap[dzKey]) {
+                  const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+                  const zonaInfo = INITIAL_ZONES.find(z => z.id === zonaId);
+                  dailyZoneMap[dzKey] = {
+                    Fecha: dateStr,
+                    Zona: zonaId,
+                    ZonaNombre: zonaInfo ? zonaInfo.name : (zonaName || `Zona ${String(zonaId).padStart(2, '0')}`),
+                    Pedidos: 0, Kilos: 0, Euros: 0, Bultos: 0,
+                    DiaSemanaN: dateObj.getDay(),
+                    DiaSemana: weekdayNames[dateObj.getDay()],
+                    Mes: mes
+                  };
                 }
-              } else {
-                if (kilos > 0) dailyZoneMap[dzKey].Pedidos += 0.05;
-              }
 
-              dailyZoneMap[dzKey].Kilos += kilos;
-              dailyZoneMap[dzKey].Euros += euros;
-              dailyZoneMap[dzKey].Bultos += bultos;
+                if (orderKey) {
+                  if (!uniqueOrders.has(orderKey)) {
+                    dailyZoneMap[dzKey].Pedidos += 1;
+                    uniqueOrders.add(orderKey);
+                  }
+                } else if (kilos > 0 || euros > 0) {
+                  dailyZoneMap[dzKey].Pedidos += 0.05;
+                }
+
+                dailyZoneMap[dzKey].Kilos += kilos;
+                dailyZoneMap[dzKey].Euros += euros;
+                dailyZoneMap[dzKey].Bultos += bultos;
+              });
             });
 
             Object.values(dailyZoneMap).forEach(dz => {
               dz.Pedidos = Math.max(1, Math.round(dz.Pedidos));
+              fileResults.push(dz);
             });
 
-            resolve(Object.values(dailyZoneMap));
+            resolve(fileResults);
           } catch (err) {
             reject(err);
           }
