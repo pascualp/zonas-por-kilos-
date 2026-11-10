@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import * as XLSX from 'xlsx';
 import L from 'leaflet';
-import Plotly from 'plotly.js-dist-min';
-import { 
+// xlsx y plotly son muy pesados: se cargan solo cuando hacen falta (import dinámico más abajo).
+import {
   FileSpreadsheet, 
   Filter, 
   Map as MapIcon, 
@@ -17,9 +16,9 @@ import {
   BrainCircuit,
   Download,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  Euro
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -252,6 +251,31 @@ const MALLORCA_BOUNDS: L.LatLngBoundsExpression = [
   [40.1, 3.6]  // Noreste
 ];
 
+// Encuadre inicial: solo la isla de Mallorca, sin tanto mar alrededor
+const MALLORCA_VISTA: L.LatLngBoundsExpression = [
+  [39.26, 2.33],
+  [39.96, 3.48]
+];
+
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+// "2025-01-02" -> "02/01/2025"
+const formatDate = (iso: string) => {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return iso || "—";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+};
+
+// "2025-01" -> "enero 2025"
+const formatMonth = (ym: string) => {
+  const [y, m] = ym.split("-");
+  const nombre = MESES[parseInt(m, 10) - 1];
+  return nombre ? `${nombre} ${y}` : ym;
+};
+
+const fmt = (n: number, decimals = 0) =>
+  n.toLocaleString('es-ES', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+
 const rebuildZones = (localData: DailyZoneRecord[]): Zone[] => {
   const uniqueZoneIds = new Set(localData.map(d => d.Zona));
   const result: Zone[] = [];
@@ -282,13 +306,15 @@ const Card = ({ title, children, className, headerAction }: { title: string, chi
   </div>
 );
 
-const KPI = ({ label, value, icon: Icon, color }: { label: string, value: string | number, icon: any, color: string }) => (
-  <div className="bg-white border border-slate-200 p-4 rounded-xl flex flex-col gap-1 shadow-sm">
-    <div className="flex justify-between items-start">
-      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{label}</span>
-      <Icon size={16} className={color} />
+const KPI = ({ label, value, unit, icon: Icon, color }: { label: string, value: string | number, unit?: string, icon: any, color: string }) => (
+  <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col gap-1 shadow-sm min-w-0">
+    <div className="flex justify-between items-start gap-2">
+      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{label}</span>
+      <Icon size={18} className={color} />
     </div>
-    <div className="text-xl font-bold font-mono text-slate-900 tracking-tight">{value}</div>
+    <div className="text-xl md:text-2xl font-bold tabular-nums text-slate-900 tracking-tight truncate">
+      {value}{unit && <span className="text-sm font-medium text-slate-400 ml-1">{unit}</span>}
+    </div>
   </div>
 );
 
@@ -396,11 +422,12 @@ export default function App() {
 
   const mapRef = useCallback((node: HTMLDivElement | null) => {
     if (node !== null && !leafletMap.current) {
-      leafletMap.current = L.map(node, { 
+      leafletMap.current = L.map(node, {
         zoomControl: true,
+        zoomSnap: 0.25,
         maxBounds: MALLORCA_BOUNDS,
         maxBoundsViscosity: 1.0
-      }).setView([39.62, 2.95], 9);
+      }).fitBounds(MALLORCA_VISTA);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         minZoom: 8,
@@ -413,6 +440,7 @@ export default function App() {
       // Fix for map tiles not loading correctly in some containers
       setTimeout(() => {
         leafletMap.current?.invalidateSize();
+        leafletMap.current?.fitBounds(MALLORCA_VISTA);
       }, 100);
     } else if (node === null && leafletMap.current) {
       leafletMap.current.remove();
@@ -422,6 +450,9 @@ export default function App() {
     }
   }, []);
   const chartRef = useRef<HTMLDivElement>(null);
+  const plotlyRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const openFilePicker = () => fileInputRef.current?.click();
 
   // Load data from IndexedDB on mount
   useEffect(() => {
@@ -479,46 +510,36 @@ export default function App() {
   }, []);
 
   // --- AI Analysis ---
+  // La llamada a Gemini la hace el servidor (api/analisis.ts), así la clave nunca está en la página.
   const handleAIAnalysis = async () => {
-    if (!process.env.GEMINI_API_KEY) {
-      showAlert("Falta API Key", "No se ha configurado la API Key de Gemini.");
+    if (data.daily_zone.length === 0) {
+      showAlert("Sin datos", "Importa primero un Excel para poder analizarlo.");
       return;
     }
 
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      // Prepare a summary for the AI
-      const summary = {
-        total_kilos: data.total_kilos,
-        total_pedidos: data.total_pedidos,
-        top_zones: topZones.map(z => ({ name: z.ZonaNombre, kilos: z.Kilos, pedidos: z.Pedidos })),
-        weekday_stats: weekdayAggregation.map(w => ({ day: w.DiaSemana, kilos: w.Kilos })),
-        period: `${data.min_fecha} a ${data.max_fecha}`
-      };
-
-      const prompt = `Analiza los siguientes datos de logística de una empresa de distribución de frutas y verduras en Mallorca:
-      - Periodo: ${summary.period}
-      - Total Kilos: ${summary.total_kilos.toLocaleString()} kg
-      - Total Pedidos: ${summary.total_pedidos.toLocaleString()}
-      - Top 5 Zonas por Kilos: ${summary.top_zones.slice(0, 5).map(z => `${z.name} (${z.kilos.toLocaleString()} kg)`).join(', ')}
-      - Rendimiento por día: ${summary.weekday_stats.map(w => `${w.day}: ${w.kilos.toLocaleString()} kg`).join(', ')}
-
-      Por favor, proporciona:
-      1. Un resumen ejecutivo rápido.
-      2. Identificación de la zona más crítica o rentable.
-      3. Recomendación logística para optimizar rutas o personal basándote en los días de mayor carga.
-      4. Una curiosidad o tendencia que observes.
-      
-      Responde en español, con un tono profesional pero cercano, usando markdown para el formato.`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
+      const totales = filteredDailyZone.reduce(
+        (acc, r) => ({ kilos: acc.kilos + r.Kilos, pedidos: acc.pedidos + r.Pedidos }),
+        { kilos: 0, pedidos: 0 }
+      );
+      const res = await fetch('/api/analisis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          periodo: `${formatDate(filters.dateFrom || data.min_fecha)} a ${formatDate(filters.dateTo || data.max_fecha)}`,
+          totalKilos: totales.kilos,
+          totalPedidos: totales.pedidos,
+          zonas: topZones.slice(0, 10).map(z => ({ nombre: z.ZonaNombre, kilos: z.Kilos, pedidos: z.Pedidos })),
+          dias: weekdayAggregation.map(w => ({ dia: w.DiaSemana, kilos: w.Kilos }))
+        })
       });
-
-      setAiAnalysis(response.text || "No se pudo generar el análisis.");
+      const body = await res.json().catch(() => ({} as any));
+      if (!res.ok) {
+        setAiAnalysis(body.error || "No se pudo generar el análisis. Inténtalo de nuevo.");
+        return;
+      }
+      setAiAnalysis(body.texto || "No se pudo generar el análisis.");
     } catch (error) {
       console.error("Error en análisis IA:", error);
       setAiAnalysis("Error al conectar con la IA. Por favor, inténtalo de nuevo.");
@@ -652,10 +673,10 @@ export default function App() {
         <div class="text-slate-900 font-sans">
           <div class="font-bold border-b pb-1 mb-1">${String(z.id).padStart(2, "0")} — ${z.name}</div>
           <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <span class="text-slate-500">Kilos:</span> <span class="font-mono font-bold">${kg.toLocaleString()} kg</span>
-            <span class="text-slate-500">Pedidos:</span> <span class="font-mono">${a?.Pedidos || 0}</span>
-            <span class="text-slate-500">Bultos:</span> <span class="font-mono">${Math.round(a?.Bultos || 0)}</span>
-            <span class="text-slate-500">Euros:</span> <span class="font-mono">${(a?.Euros || 0).toLocaleString()} €</span>
+            <span class="text-slate-500">Kilos:</span> <span class="tabular-nums font-bold">${kg.toLocaleString('es-ES')} kg</span>
+            <span class="text-slate-500">Pedidos:</span> <span class="tabular-nums">${a?.Pedidos || 0}</span>
+            <span class="text-slate-500">Bultos:</span> <span class="tabular-nums">${Math.round(a?.Bultos || 0)}</span>
+            <span class="text-slate-500">Euros:</span> <span class="tabular-nums">${(a?.Euros || 0).toLocaleString('es-ES')} €</span>
           </div>
         </div>
       `)
@@ -665,7 +686,9 @@ export default function App() {
 
   // Initialize/Update Daily Chart
   useEffect(() => {
-    if (!chartRef.current) return;
+    const el = chartRef.current;
+    if (!el) return;
+    let cancelled = false;
 
     const weekdayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
@@ -674,7 +697,7 @@ export default function App() {
       .sort((a, b) => a.Fecha.localeCompare(b.Fecha));
 
     if (recs.length === 0) {
-      Plotly.purge(chartRef.current);
+      plotlyRef.current?.purge(el);
       return;
     }
 
@@ -708,7 +731,8 @@ export default function App() {
       return dayName === filters.dow ? '#0ea5e9' : 'rgba(14, 165, 233, 0.3)';
     });
 
-    Plotly.newPlot(chartRef.current, [
+    const dibujar = (Plotly: any) => {
+    Plotly.newPlot(el, [
       {
         type: 'bar',
         name: 'Kg',
@@ -742,11 +766,12 @@ export default function App() {
         hovertemplate: '<b>%{customdata}</b> %{x}<br>Pedidos: %{y}<extra></extra>'
       }
     ], {
-      margin: { l: 40, r: 40, t: 10, b: 40 },
+      margin: { l: 48, r: 48, t: 10, b: 40 },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
-      font: { color: '#64748b', size: 9 },
-      xaxis: { gridcolor: '#f1f5f9', zeroline: false, tickfont: { size: 8 } },
+      font: { family: 'Inter, system-ui, sans-serif', color: '#64748b', size: 11 },
+      separators: ',.',
+      xaxis: { gridcolor: '#f1f5f9', zeroline: false, tickfont: { size: 10 }, tickformat: '%d/%m' },
       yaxis: { title: 'Pedidos', gridcolor: '#f1f5f9', zeroline: false, side: 'left' },
       yaxis2: { title: 'Kg', overlaying: 'y', side: 'right', showgrid: false, zeroline: false },
       legend: { orientation: 'h', y: 1.1, x: 0.5, xanchor: 'center' },
@@ -754,10 +779,21 @@ export default function App() {
       barmode: 'overlay'
     }, { displayModeBar: false, responsive: true });
 
-    (chartRef.current as any).on('plotly_click', (ev: any) => {
+    (el as any).removeAllListeners?.('plotly_click');
+    (el as any).on('plotly_click', (ev: any) => {
       const d = ev.points?.[0]?.x;
-      if (d) setSelectedDate(d);
+      if (d) setSelectedDate(String(d).slice(0, 10));
     });
+    };
+
+    if (plotlyRef.current) {
+      dibujar(plotlyRef.current);
+    } else {
+      import('plotly.js-dist-min').then((mod: any) => {
+        plotlyRef.current = mod.default ?? mod;
+        if (!cancelled) dibujar(plotlyRef.current);
+      }).catch(err => console.error("No se pudo cargar la gráfica", err));
+    }
 
     if (recs.length > 0) {
       const isValid = selectedDate && recs.some(r => r.Fecha === selectedDate);
@@ -767,6 +803,8 @@ export default function App() {
     } else if (selectedDate) {
       setSelectedDate(null);
     }
+
+    return () => { cancelled = true; };
   }, [data.daily_all, filters.dateFrom, filters.dateTo, filters.dow]);
 
   // --- Handlers ---
@@ -792,11 +830,23 @@ export default function App() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const input = e.target;
+    const files = input.files ? Array.from(input.files) : [];
+    if (files.length === 0) return;
 
     setIsProcessing(true);
     setProcessingProgress({ current: 0, total: files.length });
+
+    let XLSX: typeof import('xlsx');
+    try {
+      XLSX = await import('xlsx');
+    } catch (err) {
+      console.error("No se pudo cargar el lector de Excel", err);
+      showAlert("Error", "No se pudo cargar el lector de Excel. Revisa la conexión e inténtalo de nuevo.");
+      setIsProcessing(false);
+      input.value = '';
+      return;
+    }
 
     const processFile = (file: File): Promise<DailyZoneRecord[]> => {
       return new Promise((resolve, reject) => {
@@ -1059,8 +1109,12 @@ export default function App() {
       showAlert("Error", "Error al procesar los archivos Excel. Asegúrate de que el formato sea correcto.");
     } finally {
       setIsProcessing(false);
+      // Permite volver a elegir el mismo archivo más tarde
+      input.value = '';
     }
   };
+
+  const hasData = data.daily_zone.length > 0;
 
   if (isDbLoading) {
     return (
@@ -1099,71 +1153,82 @@ export default function App() {
         </div>
       )}
       
-      {/* Header */}
-      <header className="flex flex-col gap-4 mb-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3 tracking-tight">
-              Dashboard Rutas — Zonas (Kilos)
-              {data.daily_zone.length > 0 && (
-                <span className="bg-emerald-100 text-emerald-700 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full font-bold border border-emerald-200">
-                  DB Local Activa
-                </span>
-              )}
+      <input ref={fileInputRef} type="file" className="hidden" accept=".xls,.xlsx" multiple onChange={handleFileUpload} />
+
+      {/* Cabecera */}
+      <header className="flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+              Panel de rutas y zonas
             </h1>
             <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap gap-x-5 gap-y-1 font-medium">
-              <span className="flex items-center gap-1.5">Fuente: <b className="text-slate-700">{data.source_file}</b></span>
-              <span className="flex items-center gap-1.5">Registros: <b className="text-slate-700">{data.daily_zone.length.toLocaleString()}</b></span>
+              {hasData ? (
+                <>
+                  <span>Periodo: <b className="text-slate-700">{formatDate(data.min_fecha)} – {formatDate(data.max_fecha)}</b></span>
+                  <span>Fuente: <b className="text-slate-700">{data.source_file}</b></span>
+                  <span className="inline-flex items-center gap-1 text-emerald-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Guardado en este navegador
+                  </span>
+                </>
+              ) : (
+                <span>Kilos, pedidos y bultos por zona de reparto</span>
+              )}
             </div>
           </div>
-          
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={handleAIAnalysis}
-              disabled={isAnalyzing}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-medium text-sm shadow-sm border",
-                isAnalyzing 
-                  ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed" 
-                  : "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-500"
-              )}
+
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            <button
+              onClick={openFilePicker}
+              className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl transition-all font-medium text-sm shadow-sm flex-1 sm:flex-none"
             >
-              {isAnalyzing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <BrainCircuit size={16} />}
-              Análisis IA
-            </button>
-            <button 
-              onClick={handleClearData}
-              className="flex items-center gap-2 bg-white hover:bg-red-50 text-red-600 px-4 py-2 rounded-xl transition-all border border-red-100 font-medium text-sm shadow-sm"
-            >
-              <Trash2 size={16} />
-              Borrar Datos
-            </button>
-            <label className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl cursor-pointer transition-all border border-slate-200 font-medium text-sm shadow-sm">
               <Upload size={16} />
-              Importar Excel(s)
-              <input type="file" className="hidden" accept=".xls,.xlsx" multiple onChange={handleFileUpload} />
-            </label>
+              Importar Excel
+            </button>
+            {hasData && (
+              <button
+                onClick={handleAIAnalysis}
+                disabled={isAnalyzing}
+                className={cn(
+                  "flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl transition-all font-medium text-sm shadow-sm border flex-1 sm:flex-none",
+                  isAnalyzing
+                    ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                    : "bg-white hover:bg-indigo-50 text-indigo-700 border-indigo-200"
+                )}
+              >
+                {isAnalyzing ? <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" /> : <BrainCircuit size={16} />}
+                {isAnalyzing ? "Analizando…" : "Análisis IA"}
+              </button>
+            )}
+            {hasData && (
+              <button
+                onClick={handleClearData}
+                title="Borrar todos los datos guardados"
+                aria-label="Borrar todos los datos guardados"
+                className="flex items-center justify-center gap-2 text-slate-400 hover:text-red-600 hover:bg-red-50 px-3 py-2.5 rounded-xl transition-all border border-slate-200 hover:border-red-200 text-sm bg-white"
+              >
+                <Trash2 size={16} />
+                <span className="sr-only">Borrar datos</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Summary Bar */}
-        <div className="bg-white border border-slate-200 rounded-xl px-5 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm shadow-sm">
-          <span className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">Totales</span>
-          <span className="text-slate-900 font-bold">{data.total_pedidos.toLocaleString()} <span className="text-slate-400 font-normal">pedidos</span></span>
-          <span className="text-slate-200">|</span>
-          <span className="text-slate-900 font-bold">{data.total_kilos.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-slate-400 font-normal">kg</span></span>
-          <span className="text-slate-200">|</span>
-          <span className="text-slate-900 font-bold">{data.total_bultos.toLocaleString()} <span className="text-slate-400 font-normal">bultos</span></span>
-          <span className="text-slate-200">|</span>
-          <span className="text-slate-900 font-bold">{data.total_euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-slate-400 font-normal">€</span></span>
-          <span className="text-slate-200">|</span>
-          <span className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">Rango</span>
-          <span className="font-mono text-slate-700 font-semibold">{data.min_fecha} → {data.max_fecha}</span>
-        </div>
+        {/* Totales */}
+        {hasData && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KPI label="Pedidos" value={fmt(data.total_pedidos)} icon={FileSpreadsheet} color="text-sky-500" />
+            <KPI label="Kilos" value={fmt(data.total_kilos)} unit="kg" icon={BarChart3} color="text-orange-500" />
+            <KPI label="Bultos" value={fmt(data.total_bultos)} icon={Package} color="text-violet-500" />
+            <KPI label="Importe" value={fmt(data.total_euros, 2)} unit="€" icon={Euro} color="text-emerald-500" />
+          </div>
+        )}
       </header>
 
+      {hasData ? (<>
       {/* Filters Bar (Sticky) */}
-      <div className="sticky top-4 z-[100] bg-white/80 backdrop-blur-md border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-6 shadow-lg">
+      <div className="md:sticky md:top-4 z-[1100] bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl p-3 md:p-4 flex flex-wrap items-center gap-x-6 gap-y-3 shadow-sm md:shadow-lg">
           <div className="flex items-center gap-3">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mes</label>
             <select 
@@ -1182,13 +1247,13 @@ export default function App() {
               }}
             >
               <option value="ALL">Todos los meses</option>
-              {data.months.map(m => <option key={m} value={m}>{m}</option>)}
+              {data.months.map(m => <option key={m} value={m}>{formatMonth(m)}</option>)}
             </select>
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rango</label>
-            <div className="flex items-center gap-2">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Fechas</label>
+            <div className="flex flex-wrap items-center gap-2">
               <input 
                 type="date" 
                 className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 outline-none focus:border-sky-500/50"
@@ -1204,13 +1269,13 @@ export default function App() {
               />
               <button 
                 onClick={() => setFilters({ ...filters, dateFrom: data.min_fecha, dateTo: data.max_fecha, month: 'ALL' })}
-                className="text-[10px] font-bold text-sky-500 hover:text-sky-700 px-1.5 py-0.5 rounded hover:bg-sky-50 transition-all border border-sky-100"
-                title="Usar rango máximo disponible"
+                className="text-xs font-medium text-sky-600 hover:text-sky-800 px-2 py-1 rounded-lg hover:bg-sky-50 transition-all border border-sky-100"
+                title="Usar todas las fechas disponibles"
               >
-                MAX
+                Todo
               </button>
               <select 
-                className="bg-white/50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-500 outline-none focus:border-sky-500/50"
+                className="bg-white/50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 outline-none focus:border-sky-500/50"
                 value=""
                 onChange={(e) => {
                   const val = e.target.value;
@@ -1229,17 +1294,18 @@ export default function App() {
                   });
                 }}
               >
-                <option value="">Presets...</option>
+                <option value="">Periodo rápido…</option>
                 <option value="7d">Últimos 7 días</option>
                 <option value="15d">Últimos 15 días</option>
                 <option value="30d">Últimos 30 días</option>
               </select>
               <button 
                 onClick={() => setFilters({ ...filters, dateFrom: '', dateTo: '', month: 'ALL' })}
-                className="text-slate-300 hover:text-red-400 transition-all"
-                title="Limpiar fechas"
+                className="text-slate-300 hover:text-slate-600 transition-all p-1"
+                title="Quitar el filtro de fechas"
+                aria-label="Quitar el filtro de fechas"
               >
-                <Trash2 size={12} />
+                <RotateCcw size={12} />
               </button>
             </div>
           </div>
@@ -1325,14 +1391,14 @@ export default function App() {
         {/* Map Section */}
         <Card title="Distribución Geográfica" headerAction={<MapIcon size={16} className="text-slate-300" />}>
           <div className="relative">
-            <div ref={mapRef} className="h-[750px] w-full rounded-xl z-0 border border-slate-100" />
+            <div ref={mapRef} className="h-[420px] md:h-[560px] lg:h-[680px] w-full rounded-xl z-0 border border-slate-100" />
             
             {filters.mapMode === 'day' && (
               <div className="absolute top-4 right-4 z-[1000] flex flex-col items-end gap-2">
                 {selectedDate ? (
                   <div className="bg-white/90 backdrop-blur-md border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-mono text-slate-700 shadow-lg flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                    Mostrando: <span className="font-bold">{selectedDate}</span>
+                    Mostrando: <span className="font-bold">{formatDate(selectedDate)}</span>
                   </div>
                 ) : (
                   <div className="bg-orange-50 border border-orange-200 px-4 py-2 rounded-lg text-xs text-orange-700 shadow-lg flex items-center gap-2 animate-bounce">
@@ -1349,13 +1415,14 @@ export default function App() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Chart and Top Zones */}
           <div className="lg:col-span-7 space-y-6">
-            <Card title="Día a día: Pedidos (izq) y Kg (der). Click para seleccionar día." headerAction={<TrendingUp size={16} className="text-slate-300" />}>
-              <div ref={chartRef} className="h-[350px] w-full" />
+            <Card title="Evolución diaria: kilos y pedidos" headerAction={<TrendingUp size={16} className="text-slate-300" />}>
+              <p className="text-xs text-slate-400 -mt-1 mb-2">Pulsa una barra para ver ese día en el mapa (modo «Día»).</p>
+              <div ref={chartRef} className="h-[300px] md:h-[350px] w-full" />
             </Card>
 
             <Card title="Top zonas (por Kg)" headerAction={<MapPin size={16} className="text-slate-300" />}>
-              <div className="max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
-                <table className="w-full text-sm text-left border-separate border-spacing-y-2">
+              <div className="max-h-[500px] overflow-auto custom-scrollbar pr-2">
+                <table className="w-full min-w-[480px] text-sm text-left border-separate border-spacing-y-2">
                   <thead className="sticky top-0 bg-white z-10">
                     <tr className="text-slate-400 border-b border-slate-100">
                       <th className="pb-2 font-medium uppercase text-[10px] tracking-wider">Zona</th>
@@ -1374,13 +1441,13 @@ export default function App() {
                             <span className="font-bold text-slate-700 text-[11px] uppercase tracking-tight leading-tight">{row.ZonaNombre}</span>
                           </div>
                         </td>
-                        <td className="py-3 text-right font-mono text-slate-500 text-[11px] border-t border-slate-100">{row.Pedidos.toLocaleString()}</td>
-                        <td className="py-3 text-right font-mono text-slate-900 font-bold text-[11px] border-t border-slate-100">
+                        <td className="py-3 text-right tabular-nums text-slate-500 text-[11px] border-t border-slate-100">{row.Pedidos.toLocaleString()}</td>
+                        <td className="py-3 text-right tabular-nums text-slate-900 font-bold text-[11px] border-t border-slate-100">
                           {row.Kilos.toLocaleString(undefined, { minimumFractionDigits: 1 })}<br/>
                           <span className="text-[9px] text-slate-400 font-normal">kg</span>
                         </td>
-                        <td className="py-3 text-right font-mono text-slate-500 text-[11px] border-t border-slate-100">{Math.round(row.Bultos).toLocaleString()}</td>
-                        <td className="py-3 text-right font-mono text-slate-900 text-[11px] border-t border-slate-100">{row.Euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
+                        <td className="py-3 text-right tabular-nums text-slate-500 text-[11px] border-t border-slate-100">{Math.round(row.Bultos).toLocaleString()}</td>
+                        <td className="py-3 text-right tabular-nums text-slate-900 text-[11px] border-t border-slate-100">{row.Euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1407,10 +1474,10 @@ export default function App() {
                     {weekdayAggregation.map(row => (
                       <tr key={row.DiaSemana} className="hover:bg-slate-50 transition-colors group">
                         <td className="py-3 font-bold text-slate-700">{row.DiaSemana}</td>
-                        <td className="py-3 text-right font-mono text-slate-500">{row.Pedidos.toLocaleString()}</td>
-                        <td className="py-3 text-right font-mono text-slate-900">{row.Kilos.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg</td>
-                        <td className="py-3 text-right font-mono text-slate-500">{Math.round(row.Bultos).toLocaleString()}</td>
-                        <td className="py-3 text-right font-mono text-slate-900">{row.Euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
+                        <td className="py-3 text-right tabular-nums text-slate-500">{row.Pedidos.toLocaleString()}</td>
+                        <td className="py-3 text-right tabular-nums text-slate-900">{row.Kilos.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg</td>
+                        <td className="py-3 text-right tabular-nums text-slate-500">{Math.round(row.Bultos).toLocaleString()}</td>
+                        <td className="py-3 text-right tabular-nums text-slate-900">{row.Euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1439,11 +1506,11 @@ export default function App() {
                       const euros = monthData.reduce((s, r) => s + r.Euros, 0);
                       return (
                         <tr key={m} className="hover:bg-slate-50 transition-colors group">
-                          <td className="py-3 font-bold text-slate-700">{m}</td>
-                          <td className="py-3 text-right font-mono text-slate-500">{pedidos.toLocaleString()}</td>
-                          <td className="py-3 text-right font-mono text-slate-900">{kilos.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg</td>
-                          <td className="py-3 text-right font-mono text-slate-500">{Math.round(bultos).toLocaleString()}</td>
-                          <td className="py-3 text-right font-mono text-slate-900">{euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
+                          <td className="py-3 font-bold text-slate-700 capitalize">{formatMonth(m)}</td>
+                          <td className="py-3 text-right tabular-nums text-slate-500">{pedidos.toLocaleString()}</td>
+                          <td className="py-3 text-right tabular-nums text-slate-900">{kilos.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg</td>
+                          <td className="py-3 text-right tabular-nums text-slate-500">{Math.round(bultos).toLocaleString()}</td>
+                          <td className="py-3 text-right tabular-nums text-slate-900">{euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
                         </tr>
                       );
                     })}
@@ -1454,21 +1521,28 @@ export default function App() {
           </div>
         </div>
       </div>
-
-      {/* Processing Overlay */}
-      <AnimatePresence>
-        {isProcessing && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center gap-4"
+      </>) : (
+        /* Pantalla vacía: todavía no se ha importado ningún Excel */
+        <div className="bg-white border border-dashed border-slate-300 rounded-2xl px-6 py-14 md:py-20 text-center shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-5">
+            <FileSpreadsheet size={28} />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Todavía no hay datos</h2>
+          <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
+            Importa uno o varios Excel de albaranes para ver los kilos, pedidos y bultos por zona en el mapa.
+            Los datos se quedan guardados solo en este navegador.
+          </p>
+          <button
+            onClick={openFilePicker}
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl transition-all font-medium text-sm shadow-sm"
           >
-            <div className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-white font-medium animate-pulse">Procesando archivo Excel...</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <Upload size={16} />
+            Importar Excel
+          </button>
+          <p className="text-xs text-slate-400 mt-4">Formatos admitidos: .xls y .xlsx</p>
+        </div>
+      )}
+
       {/* Custom Modal */}
       <AnimatePresence>
         {modalConfig.isOpen && (
