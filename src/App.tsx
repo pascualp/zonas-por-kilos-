@@ -1179,19 +1179,21 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            {hasData && (
             <button
               onClick={openFilePicker}
-              className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl transition-all font-medium text-sm shadow-sm flex-1 sm:flex-none"
+              className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl transition-all font-medium text-sm shadow-sm flex-1 sm:flex-none whitespace-nowrap"
             >
               <Upload size={16} />
               Importar Excel
             </button>
+            )}
             {hasData && (
               <button
                 onClick={handleAIAnalysis}
                 disabled={isAnalyzing}
                 className={cn(
-                  "flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl transition-all font-medium text-sm shadow-sm border flex-1 sm:flex-none",
+                  "flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl transition-all font-medium text-sm shadow-sm border flex-1 sm:flex-none whitespace-nowrap",
                   isAnalyzing
                     ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
                     : "bg-white hover:bg-indigo-50 text-indigo-700 border-indigo-200"
@@ -1422,14 +1424,14 @@ export default function App() {
 
             <Card title="Top zonas (por Kg)" headerAction={<MapPin size={16} className="text-slate-300" />}>
               <div className="max-h-[500px] overflow-auto custom-scrollbar pr-2">
-                <table className="w-full min-w-[480px] text-sm text-left border-separate border-spacing-y-2">
+                <table className="w-full text-sm text-left border-separate border-spacing-y-2">
                   <thead className="sticky top-0 bg-white z-10">
                     <tr className="text-slate-400 border-b border-slate-100">
                       <th className="pb-2 font-medium uppercase text-[10px] tracking-wider">Zona</th>
                       <th className="pb-2 font-medium uppercase text-[10px] tracking-wider text-right">Pedidos</th>
                       <th className="pb-2 font-medium uppercase text-[10px] tracking-wider text-right">Kg</th>
-                      <th className="pb-2 font-medium uppercase text-[10px] tracking-wider text-right">Bultos</th>
-                      <th className="pb-2 font-medium uppercase text-[10px] tracking-wider text-right">€</th>
+                      <th className="pb-2 font-medium uppercase text-[10px] tracking-wider text-right hidden sm:table-cell">Bultos</th>
+                      <th className="pb-2 font-medium uppercase text-[10px] tracking-wider text-right hidden sm:table-cell">€</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1441,13 +1443,13 @@ export default function App() {
                             <span className="font-bold text-slate-700 text-[11px] uppercase tracking-tight leading-tight">{row.ZonaNombre}</span>
                           </div>
                         </td>
-                        <td className="py-3 text-right tabular-nums text-slate-500 text-[11px] border-t border-slate-100">{row.Pedidos.toLocaleString()}</td>
-                        <td className="py-3 text-right tabular-nums text-slate-900 font-bold text-[11px] border-t border-slate-100">
-                          {row.Kilos.toLocaleString(undefined, { minimumFractionDigits: 1 })}<br/>
-                          <span className="text-[9px] text-slate-400 font-normal">kg</span>
+                        <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-500 text-[11px] border-t border-slate-100">{row.Pedidos.toLocaleString()}</td>
+                        <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-900 font-bold text-[11px] border-t border-slate-100">
+                          {row.Kilos.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                          <span className="text-[10px] text-slate-400 font-normal ml-1">kg</span>
                         </td>
-                        <td className="py-3 text-right tabular-nums text-slate-500 text-[11px] border-t border-slate-100">{Math.round(row.Bultos).toLocaleString()}</td>
-                        <td className="py-3 text-right tabular-nums text-slate-900 text-[11px] border-t border-slate-100">{row.Euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
+                        <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-500 text-[11px] border-t border-slate-100 hidden sm:table-cell">{Math.round(row.Bultos).toLocaleString()}</td>
+                        <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-900 text-[11px] border-t border-slate-100 hidden sm:table-cell">{row.Euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1460,13 +1462,13 @@ export default function App() {
           <div className="lg:col-span-5 space-y-6">
             <Card title="Totales por día de semana (Kg)" headerAction={<Calendar size={16} className="text-slate-300" />}>
               <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-sm text-left">
+                <table className="w-full text-xs sm:text-sm text-left">
                   <thead>
                     <tr className="text-slate-400 border-b border-slate-100">
                       <th className="py-2 font-medium uppercase text-[10px] tracking-wider">Día</th>
                       <th className="py-2 font-medium uppercase text-[10px] tracking-wider text-right">Pedidos</th>
                       <th className="py-2 font-medium uppercase text-[10px] tracking-wider text-right">Kg</th>
-                      <th className="py-2 font-medium uppercase text-[10px] tracking-wider text-right">Bultos</th>
+                      <th className="py-2 font-medium uppercase text-[10px] tracking-wider text-right hidden sm:table-cell">Bultos</th>
                       <th className="py-2 font-medium uppercase text-[10px] tracking-wider text-right">€</th>
                     </tr>
                   </thead>
@@ -1474,10 +1476,10 @@ export default function App() {
                     {weekdayAggregation.map(row => (
                       <tr key={row.DiaSemana} className="hover:bg-slate-50 transition-colors group">
                         <td className="py-3 font-bold text-slate-700">{row.DiaSemana}</td>
-                        <td className="py-3 text-right tabular-nums text-slate-500">{row.Pedidos.toLocaleString()}</td>
-                        <td className="py-3 text-right tabular-nums text-slate-900">{row.Kilos.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg</td>
-                        <td className="py-3 text-right tabular-nums text-slate-500">{Math.round(row.Bultos).toLocaleString()}</td>
-                        <td className="py-3 text-right tabular-nums text-slate-900">{row.Euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
+                        <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-500">{row.Pedidos.toLocaleString()}</td>
+                        <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-900">{row.Kilos.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg</td>
+                        <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-500 hidden sm:table-cell">{Math.round(row.Bultos).toLocaleString()}</td>
+                        <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-900">{row.Euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1487,13 +1489,13 @@ export default function App() {
 
             <Card title="Totales por mes (Kg)" headerAction={<Calendar size={16} className="text-slate-300" />}>
               <div className="max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
-                <table className="w-full text-sm text-left">
+                <table className="w-full text-xs sm:text-sm text-left">
                    <thead className="sticky top-0 bg-white z-10">
                     <tr className="text-slate-400 border-b border-slate-100">
                       <th className="py-2 font-medium uppercase text-[10px] tracking-wider">Mes</th>
                       <th className="py-2 font-medium uppercase text-[10px] tracking-wider text-right">Pedidos</th>
                       <th className="py-2 font-medium uppercase text-[10px] tracking-wider text-right">Kg</th>
-                      <th className="py-2 font-medium uppercase text-[10px] tracking-wider text-right">Bultos</th>
+                      <th className="py-2 font-medium uppercase text-[10px] tracking-wider text-right hidden sm:table-cell">Bultos</th>
                       <th className="py-2 font-medium uppercase text-[10px] tracking-wider text-right">€</th>
                     </tr>
                   </thead>
@@ -1507,10 +1509,10 @@ export default function App() {
                       return (
                         <tr key={m} className="hover:bg-slate-50 transition-colors group">
                           <td className="py-3 font-bold text-slate-700 capitalize">{formatMonth(m)}</td>
-                          <td className="py-3 text-right tabular-nums text-slate-500">{pedidos.toLocaleString()}</td>
-                          <td className="py-3 text-right tabular-nums text-slate-900">{kilos.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg</td>
-                          <td className="py-3 text-right tabular-nums text-slate-500">{Math.round(bultos).toLocaleString()}</td>
-                          <td className="py-3 text-right tabular-nums text-slate-900">{euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
+                          <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-500">{pedidos.toLocaleString()}</td>
+                          <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-900">{kilos.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg</td>
+                          <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-500 hidden sm:table-cell">{Math.round(bultos).toLocaleString()}</td>
+                          <td className="py-3 text-right tabular-nums whitespace-nowrap pl-2 sm:pl-3 text-slate-900">{euros.toLocaleString(undefined, { minimumFractionDigits: 2 })} €</td>
                         </tr>
                       );
                     })}
